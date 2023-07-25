@@ -1,0 +1,101 @@
+#moes MS-105B
+esphome:
+  name: bk7231t-2gang-dimmer
+  friendly_name: bk7231t-2gang-dimmer
+
+bk72xx:
+  board: wb2s
+  framework:
+    version: dev
+
+logger:
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  
+
+uart:
+  rx_pin: RX1
+  tx_pin: TX1
+  baud_rate: 9600
+
+tuya:
+
+light:
+  - platform: "tuya"
+    name: "Right button"
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    switch_datapoint: 1
+    max_value: 1000
+
+  - platform: "tuya"
+    name: "Left button"
+    dimmer_datapoint: 8
+    min_value_datapoint: 9
+    switch_datapoint: 7
+    max_value: 1000
+    
+    
+    
+remote_transmitter:
+  pin: P8
+  # Infrared remotes use a 50% carrier signal
+  carrier_duty_percent: 50%
+
+button:
+  - platform: template
+    name: "projector power"
+    icon: mdi:power
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xF708
+        command: 0xF40B
+
+  - platform: template
+    name: "projector input"
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xF708
+        command: 0xF30C
+
+  - platform: template
+    name: "projector down"
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xF708
+        command: 0xAC53
+
+  - platform: template
+    name: "projector ok"
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xF708
+        command: 0xE31C
+
+  - platform: template
+    name: "soundbar power"
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xB683
+        command: 0xB24D
+
+  - platform: template
+    name: "soundbar vol up"
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xB683
+        command: 0xF40B
+
+#0x10EFD02F pow 0x8F70BF4
+#0x10EFCA35 dn 0x8F753AC
+#0x10EF38C7 ok 0x8F71CE3
+#0x10EF30CF input 0x8F70CF3
+#0xC16DB24D pow sb 0x83B64DB2
+#0xC16DD02F vol up sb 0x83B60BF4

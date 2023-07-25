@@ -1,0 +1,44 @@
+esphome:
+  name: esp32-flipper-board
+
+esp32:
+  board: lolin_s2_mini
+  variant: esp32s2
+  framework:
+    type: esp-idf
+    version: recommended
+
+logger:
+
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+
+output:
+  - platform: ledc
+    pin: GPIO4
+    id: led_b
+    inverted: true
+  - platform: ledc
+    pin: GPIO5
+    id: led_g
+    inverted: true
+  - platform: ledc
+    pin: GPIO6
+    id: led_r
+    inverted: true
+    
+    
+light:
+  - platform: rgb
+    name: "RGB led"
+    red: led_r
+    green: led_g
+    blue: led_b

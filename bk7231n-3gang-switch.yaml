@@ -1,0 +1,85 @@
+esphome:
+  name: bk7231n-3gang-switch
+libretuya:
+  board: generic-bk7231n-qfn32-tuya
+  framework:
+    version: dev
+
+logger:
+api:
+  password: ""
+  services:
+    - service: play_rtttl
+      variables:
+        song_str: string
+      then:
+        - rtttl.play:
+            rtttl: !lambda 'return song_str;'
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: D5
+    id: button_1
+    on_state:
+      then:
+        - light.toggle: light_1
+  - platform: gpio
+    pin:
+      number: D9
+    id: button_2
+    on_state:
+      then:
+        - light.toggle: light_2
+  - platform: gpio
+    pin:
+      number: D3
+    id: button_3
+    on_state:
+      then:
+        - light.toggle: light_3
+  - platform: gpio
+    pin:
+      number: D8
+    id: button_4
+    on_press:
+      then:
+        - rtttl.play: 'MissionImp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d'
+
+output:
+  - platform: gpio
+    pin: D16
+    id: relay_1
+  - platform: gpio
+    pin: D11
+    id: relay_2
+  - platform: gpio
+    pin: D17
+    id: relay_3
+  - platform: ledc
+    pin: D4
+    id: rtttl_out
+    
+light:
+  - platform: binary
+    name: "Left"
+    id: light_1
+    output: relay_1
+  - platform: binary
+    name: "Middle"
+    id: light_2
+    output: relay_2
+  - platform: binary
+    name: "Right"
+    id: light_3
+    output: relay_3
+
+rtttl:
+  output: rtttl_out

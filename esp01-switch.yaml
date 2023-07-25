@@ -1,0 +1,25 @@
+esphome:
+  name: esp01-switch
+
+esp8266:
+  board: esp01
+
+logger:
+
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+switch:
+  - platform: gpio
+    pin: 2
+    inverted: true
+    name: "Honk"
+    restore_mode: ALWAYS_OFF
+

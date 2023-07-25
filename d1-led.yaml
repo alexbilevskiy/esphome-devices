@@ -1,0 +1,29 @@
+esphome:
+  name: d1-led
+  friendly_name: d1-led
+
+esp8266:
+  board: esp01
+
+logger:
+
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+output:
+  - platform: esp8266_pwm
+    pin: GPIO0
+    frequency: 1000 Hz
+    id: pwm_output
+
+light:
+  - platform: monochromatic
+    output: pwm_output
+    name: "PWM led"

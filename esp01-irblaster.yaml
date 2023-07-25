@@ -1,0 +1,68 @@
+esphome:
+  name: esp01-irblaster
+  friendly_name: esp01-irblaster
+
+esp8266:
+  board: esp01_1m
+
+logger:
+
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+remote_receiver:
+  pin: 
+    number: GPIO2
+    inverted: true
+  dump: nec
+  
+remote_transmitter:
+  pin: GPIO3
+  # Infrared remotes use a 50% carrier signal
+  carrier_duty_percent: 50%
+  
+button:
+  - platform: template
+    name: "speaker power"
+    icon: mdi:power
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xFF00
+        command: 0xBA45
+  - platform: template
+    name: "speaker aux1"
+    icon: mdi:audio-input-rca
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xFF00
+        command: 0xBB44
+  - platform: template
+    name: "speaker bt"
+    icon: mdi:bluetooth-audio
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xFF00
+        command: 0xBF40
+  - platform: template
+    name: "speaker optical"
+    icon: mdi:toslink
+    on_press:
+      remote_transmitter.transmit_nec:
+        address: 0xFF00
+        command: 0xBC43
+
+
+
+
+
+#13:29:55.837 MQT: tele/tasmota_5564F3/RESULT = {"IrReceived":{"Protocol":"NEC","Bits":32,"Data":"0xFFA25D","DataLSB":"0xFF45BA","Repeat":0}}
+#13:29:58.195 MQT: tele/tasmota_5564F3/RESULT = {"IrReceived":{"Protocol":"NEC","Bits":32,"Data":"0xFF22DD","DataLSB":"0xFF44BB","Repeat":0}}
+#13:30:01.471 MQT: tele/tasmota_5564F3/RESULT = {"IrReceived":{"Protocol":"NEC","Bits":32,"Data":"0xFF02FD","DataLSB":"0xFF40BF","Repeat":0}}
+#13:30:04.254 MQT: tele/tasmota_5564F3/RESULT = {"IrReceived":{"Protocol":"NEC","Bits":32,"Data":"0xFFC23D","DataLSB":"0xFF43BC","Repeat":0}}
