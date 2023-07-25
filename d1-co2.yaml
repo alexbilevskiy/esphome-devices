@@ -1,6 +1,7 @@
 esphome:
   name: d1-co2
   includes:
+    # https://github.com/LeoDJ/ESPHome_Nodes/tree/main/CM1106_CO2_Sensor
     - "cm1106.h"
     
 esp8266:
