@@ -3,9 +3,9 @@
 #### Most interesting are:
 - `pet-feeder` for tuya smart pet feeder
 - `acmelec-thermostat` for tuya thermostat
-- `bk7231t-2gang-dimmer` as an example of libretiny 
+- `bk7231t-2gang-dimmer` as an example of [libretiny](https://docs.libretiny.eu/) 
 - `esp-ups` for [ninebot battery](https://github.com/alexbilevskiy/esphome-custom/tree/master/ninebattery)
-- `esp32-flipper-board` for flipper devboard
+- `esp32-flipper-board` for flipper zero devboard
 
 Many devices are not single-purpose, for example:
 - pet feeder has additional comfy pwm led for cats :3
