@@ -23,3 +23,6 @@ switch:
     name: "Honk"
     restore_mode: ALWAYS_OFF
 
+sensor:
+  - platform: uptime
+    name: Uptime

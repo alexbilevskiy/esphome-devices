@@ -83,3 +83,7 @@ light:
 
 rtttl:
   output: rtttl_out
+
+sensor:
+  - platform: uptime
+    name: Uptime

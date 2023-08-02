@@ -93,6 +93,11 @@ button:
         address: 0xB683
         command: 0xF40B
 
+sensor:
+  - platform: uptime
+    name: Uptime
+
+
 #0x10EFD02F pow 0x8F70BF4
 #0x10EFCA35 dn 0x8F753AC
 #0x10EF38C7 ok 0x8F71CE3

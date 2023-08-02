@@ -118,6 +118,8 @@ sensor:
       name: g8 move energy
     g8_still_energy:
       name: g8 still energy
+  - platform: uptime
+    name: Uptime
 
 
 switch:

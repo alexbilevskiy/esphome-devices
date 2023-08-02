@@ -46,3 +46,7 @@ select:
       0: "Always on"
       1: "Inching"
       2: "Interlock"
+
+sensor:
+  - platform: uptime
+    name: Uptime

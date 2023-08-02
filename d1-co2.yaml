@@ -48,6 +48,8 @@ sensor:
       name: "CO₂ S8"
     update_interval: 15s
     uart_id: s8_uart
+  - platform: uptime
+    name: Uptime
 
 switch:
   - platform: custom

@@ -184,6 +184,8 @@ sensor:
       accuracy_decimals: 0
       filters:
         - throttle: 15s
+  - platform: uptime
+    name: Uptime
 
 text_sensor:
   - platform: custom

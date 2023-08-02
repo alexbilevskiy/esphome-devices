@@ -58,6 +58,9 @@ button:
         address: 0xFF00
         command: 0xBC43
 
+sensor:
+  - platform: uptime
+    name: Uptime
 
 
 
