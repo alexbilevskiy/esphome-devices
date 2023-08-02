@@ -1,6 +1,8 @@
 esphome:
   name: bk7231n-3gang-switch
-libretuya:
+  friendly_name: bk7231n-3gang-switch
+
+bk72xx:
   board: generic-bk7231n-qfn32-tuya
   framework:
     version: dev
@@ -21,7 +23,7 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  
+  fast_connect: true
 
 binary_sensor:
   - platform: gpio
