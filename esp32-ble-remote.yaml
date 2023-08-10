@@ -1,0 +1,63 @@
+esphome:
+  name: esp32-ble-remote
+  friendly_name: "esp32-ble-remote"
+
+external_components:
+  - source: github://fsievers22/esphome-ble-remote@master
+    components: [ ble_client_hid ]
+
+esp32:
+  board: wemos_d1_mini32
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+esp32_ble_tracker:
+
+ble_client:
+  - id: ble_client_1
+    #mac_address: "F0:5E:CD:51:9B:66"
+    mac_address: "2B:80:3C:5A:A1:11"
+
+ble_client_hid:
+  - id: ble_client_hid_1
+    ble_client_id: ble_client_1
+
+sensor:
+  - platform: ble_client_hid
+    ble_client_hid_id: ble_client_hid_1
+    type: battery
+    name: "Battery"
+
+  - platform: ble_client_hid
+    type: last_event_value
+    name: "Last Event Value"
+
+text_sensor:
+  - platform: ble_client_hid
+    name: "Last Event Usage"
+
+
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+    restore_mode: ALWAYS_ON
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: GPIO2
+    inverted: false
