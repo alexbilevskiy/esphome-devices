@@ -24,6 +24,7 @@ uart:
   baud_rate: 9600
 
 tuya:
+  status_pin: GPIO13
 
 switch:
   - platform: "tuya"
