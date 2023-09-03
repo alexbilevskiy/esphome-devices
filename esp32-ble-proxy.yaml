@@ -180,6 +180,8 @@ sensor:
       name: light
   - platform: uptime
     name: Uptime
+  - platform: internal_temperature
+    name: "Internal Temperature"
 
 
 switch:
