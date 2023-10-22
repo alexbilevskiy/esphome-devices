@@ -9,6 +9,7 @@ esp8266:
   board: d1_mini
 
 logger:
+  baud_rate: 0
 
 api:
   password: ""
@@ -20,6 +21,11 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
 
+i2c:
+  sda: D1
+  scl: D2
+  scan: true
+  id: bus_a
 
 uart:
   - rx_pin: D7
@@ -27,8 +33,8 @@ uart:
     baud_rate: 9600
     id: cm1106_uart
 
-  - rx_pin: D2
-    tx_pin: D1
+  - rx_pin: RX
+    tx_pin: TX
     baud_rate: 9600
     id: s8_uart
     
@@ -49,6 +55,12 @@ sensor:
       name: "CO₂ S8"
     update_interval: 15s
     uart_id: s8_uart
+
+  - platform: bh1750
+    name: "Illuminance"
+    address: 0x23
+    update_interval: 60s
+
   - platform: uptime
     name: Uptime
 
