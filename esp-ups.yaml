@@ -8,6 +8,7 @@ esp8266:
   board: esp12e
 
 logger:
+  baud_rate: 0
 
 api:
   password: ""
@@ -48,13 +49,19 @@ output:
 uart:
   - rx_pin:
       number: RX
-      mode: INPUT_PULLUP
+      mode: INPUT # !!! use external pullup !!! internal is not enough
     tx_pin:
       number: TX
       mode: OUTPUT
     baud_rate: 115200
     id: ninebattery_uart
-    
+#    debug:
+#      direction: BOTH
+#      dummy_receiver: false
+#      after:
+#        delimiter: "\n"
+#      sequence:
+#        - lambda: UARTDebug::log_string(direction, bytes);
     
 sensor:
   - platform: custom
