@@ -33,11 +33,29 @@ uart:
     baud_rate: 9600
     id: cm1106_uart
 
+  - rx_pin: D5
+    tx_pin: D8 #not connected
+    baud_rate: 9600
+    id: pm_2_5_uart
+
   - rx_pin: RX
     tx_pin: TX
     baud_rate: 9600
     id: s8_uart
     
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+    restore_mode: ALWAYS_OFF
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: D4
+    inverted: true
+
 sensor:
   - platform: custom
     lambda: |-
@@ -50,6 +68,7 @@ sensor:
       unit_of_measurement: "ppm"
       device_class: "carbon_dioxide"
       icon: "mdi:molecule-co2"
+
   - platform: senseair
     co2:
       name: "CO₂ S8"
@@ -60,6 +79,12 @@ sensor:
     name: "Illuminance"
     address: 0x23
     update_interval: 60s
+
+  - platform: pm1006
+    pm_2_5:
+      name: "PM 2.5µm"
+    update_interval: 20s
+    uart_id: pm_2_5_uart
 
   - platform: uptime
     name: Uptime
