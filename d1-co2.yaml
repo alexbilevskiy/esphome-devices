@@ -34,7 +34,7 @@ uart:
     id: cm1106_uart
 
   - rx_pin: D5
-    tx_pin: D8 #not connected
+    # tx_pin: D8 # not connected
     baud_rate: 9600
     id: pm_2_5_uart
 
