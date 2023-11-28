@@ -1,0 +1,118 @@
+#TODO: draft! combine all packages into single yaml and remove excessive data
+
+substitutions:
+  # tion mac address.
+  tion_mac_address: c8:f3:89:cd:50:90
+  # name of the node.
+  node_name: esp32-bedroom
+  # name for main climate entity and prefix for all others.
+  friendly_name: $node_name
+  # add suffix for node name to have one firmware for many devices.
+  node_add_mac_suffix: "false"
+  # setup your board or leave it asis.
+  board: esp32dev
+  # wifi settings.
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+
+packages:
+  tion:
+    url: https://github.com/dentra/esphome-tion
+    ref: 2023.7.0 # cant use substitutions here
+    files:
+      ## Enable additional WiFi signal sensor. Comment next line to disable.
+      #- packages/wifi_signal.yaml
+      ## Enable additional BLE RSSI sensor. Comment next line to disable.
+      - packages/rssi_signal.yaml
+      ## Enable additional Uptime sensor. Comment next line to disable.
+      - packages/uptime.yaml
+      ## Uncomment next line to enable additional restart button.
+      - packages/restart.yaml
+      ## Common configuration settings. Do not comment or move.
+      - packages/base.yaml
+      ## ESP32 configuration settings. Do not comment or move.
+      - packages/esp32_ble.yaml
+      ## Uncomment next line to enable additional debug information.
+      - packages/esp32_temperature.yaml
+
+api:
+
+# WiFi hotspot configuration.
+# Comment next 3 lines to enable manual WiFi conviguration via access point.
+wifi:
+  ssid: $wifi_ssid
+  password: $wifi_password
+  fast_connect: true
+
+# Virtual port configuration
+vport:
+  - platform: tion_lt
+    id: tionLt_ble_vport
+    ble_client_id: tion_ble_client
+    # Optional, Do not disconnect after receiving state. Default: false.
+    persistent_connection: true
+    # Optional, Timeout to reconnect if no state answer received. Default: 15s.
+    state_timeout: 15s
+    # Optional, Allow to disable other BLE device scanning when breezer is already connected. Default: false.
+    disable_scan: true
+
+# Main climate component configuration.
+climate:
+  - platform: tion_lt
+    id: tion_climate
+    name: None # use friendly_name
+    # Optional, virtual port id. Default: autodetect
+    vport_id: tionLt_ble_vport
+    # Optional, Buzzer control switch.
+    buzzer:
+      name: "Buzzer"
+    # Optional, Led control switch.
+    led:
+      name: "Led"
+    # Optional, Temperatire of air before heater, °C (celsius).
+    outdoor_temperature:
+      name: "Outdoor Temperature"
+    # Optional, Heater power, W (watt).
+    heater_power:
+      name: "Heater power"
+    # Optional, Total airflow counter, m³ (cubic meters).
+    airflow_counter:
+      name: "Airflow counter"
+    # Optional, Filter time left counter, days.
+    filter_time_left:
+      name: "Filter Time Left"
+    # Optional, Filter warning state.
+    filter_warnout:
+      name: "Filter Warnout"
+    # Optional, Tion firmware version.
+    version:
+      name: "Version"
+    # Optional, Enable presets. Default: <empty>
+    # Awailable configurable presets: home, away, boost, comfort, eco, sleep, activity.
+    # Defaults:
+    #   home    : { fan_speed: 2, target_temperature: 20, mode: heat }
+    #   away    : { fan_speed: 1, target_temperature: 10, mode: fan_only }
+    #   boost   : { fan_speed: 6, target_temperature: 10, mode: fan_only }
+    #   comfort : { fan_speed: 2, target_temperature: 23, mode: heat }
+    #   eco     : { fan_speed: 1, target_temperature: 16, mode: heat }
+    #   sleep   : { fan_speed: 1, target_temperature: 18, mode: heat }
+    #   activity: { fan_speed: 3, target_temperature: 18, mode: heat }
+    # Boost is a special preset that runs for a period defined by boost_time and then switches back to the previous preset.
+    presets:
+      # enable and override "home" preset
+      home: { fan_speed: 2, target_temperature: 16, mode: heat }
+      # enable "away" preset
+      away:
+      # enable "boost" preset
+      boost:
+      # enable and override "sleep" preset
+      sleep: { fan_speed: 1, target_temperature: 18, mode: heat }
+      comfort : { fan_speed: 2, target_temperature: 10, mode: fan_only }
+    # Optional, configure boost time
+    boost_time:
+      name: "Boost Time"
+    # Optional, display remaining boost time
+    boost_time_left:
+      name: "Boost Time Left"
+    # Optional, How often query device state. Default: 60s.
+    update_interval: 60s
