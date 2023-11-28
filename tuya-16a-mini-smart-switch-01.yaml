@@ -26,7 +26,7 @@ switch:
     inverted: false
     id: switch_01
     name: "Switch"
-    restore_mode: ALWAYS_ON
+    restore_mode: ALWAYS_OFF
 
 light:
   - platform: binary
