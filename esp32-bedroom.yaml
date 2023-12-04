@@ -100,14 +100,15 @@ climate:
     # Boost is a special preset that runs for a period defined by boost_time and then switches back to the previous preset.
     presets:
       # enable and override "home" preset
-      home: { fan_speed: 2, target_temperature: 16, mode: heat }
+      #home: { fan_speed: 2, target_temperature: 16, mode: heat }
       # enable "away" preset
-      away:
+      #away:
       # enable "boost" preset
-      boost:
+      #boost:
       # enable and override "sleep" preset
-      sleep: { fan_speed: 1, target_temperature: 18, mode: heat }
-      comfort : { fan_speed: 2, target_temperature: 10, mode: fan_only }
+      #sleep: { fan_speed: 1, target_temperature: 18, mode: heat }
+      comfort : { fan_speed: 3, target_temperature: 10, mode: fan_only }
+      eco : { fan_speed: 2, target_temperature: 10, mode: fan_only }
     # Optional, configure boost time
     boost_time:
       name: "Boost Time"
