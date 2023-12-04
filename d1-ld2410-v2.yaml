@@ -124,12 +124,13 @@ sensor:
       still_energy:
         name: g8 still energy
   - platform: ccs811
+    baseline: 0xEEBB
     eco2:
       name: "ECO2"
     tvoc:
       name: "TVOC"
     address: 0x5A
-    update_interval: 60s
+    update_interval: 15s
   - platform: uptime
     name: Uptime
 
