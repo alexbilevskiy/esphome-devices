@@ -34,7 +34,7 @@ uart:
     id: cm1106_uart
 
   - rx_pin: D5
-    # tx_pin: D8 # not connected
+    tx_pin: D8 # not connected
     baud_rate: 9600
     id: pm_2_5_uart
 
@@ -68,11 +68,14 @@ sensor:
       unit_of_measurement: "ppm"
       device_class: "carbon_dioxide"
       icon: "mdi:molecule-co2"
+      filters:
+        - throttle: 15s
 
   - platform: senseair
     co2:
       name: "CO₂ S8"
-    update_interval: 15s
+    id: co2_s8
+    update_interval: 20s
     uart_id: s8_uart
 
   - platform: bh1750
@@ -97,3 +100,20 @@ switch:
       return {cm1106Calib};
     switches:
     - name: "CM1106 Zero Calibration"
+  - platform: template
+    name: "CO₂ S8 ABC"
+    optimistic: true
+    restore_mode: DISABLED
+    on_turn_on:
+      - senseair.abc_enable: co2_s8
+    on_turn_off:
+      - senseair.abc_disable: co2_s8
+
+
+button:
+  - platform: restart
+    name: "Reboot"
+  - platform: template
+    name: "CO₂ S8 background calibration"
+    on_press:
+      - senseair.background_calibration: co2_s8
