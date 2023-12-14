@@ -1,0 +1,115 @@
+# NOTE: POWER MONITORING DOES NOT WORK
+
+esphome:
+  name: bk7231n-plug-01
+  friendly_name: bk7231n-plug-01
+
+#OTA OpenBK7231N_esphome.rbl
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+  framework:
+    version: dev
+
+logger:
+  baud_rate: 0
+api:
+  password: ""
+ota:
+  password: ""
+  safe_mode: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: P11
+      inverted: false
+      mode:
+        input: true
+        pullup: true
+
+    id: button_01
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - light.toggle: light_01
+
+#    on_press:
+#      then:
+#        - light.toggle: light_01
+
+switch:
+  - platform: gpio
+    pin: P26
+    inverted: false
+    id: switch_01
+    name: "Switch"
+    restore_mode: ALWAYS_OFF
+
+#status_led:
+#  pin: P8
+
+light:
+  - platform: binary
+    name: "Indicator"
+    internal: true
+    id: light_01
+    output: light_output
+
+output:
+  - id: light_output
+    platform: gpio
+    pin: P8
+
+sensor:
+  - platform: hlw8012
+    sel_pin:
+      number: P24
+      inverted: true
+    cf_pin: P6
+    cf1_pin: P7
+    current_resistor: "0.00225"
+    voltage_divider: "655"
+    current:
+      name: "HLW8012 Current"
+      filters:
+        - calibrate_linear:
+            - 0.0000 -> 0.0110 # Relay off no load
+            - 0.0097 -> 0.0260 # Relay on no load
+            - 0.9270 -> 0.7570
+            - 2.0133 -> 1.6330
+            - 2.9307 -> 2.3750
+            - 5.4848 -> 4.4210
+            - 8.4308 -> 6.8330
+            - 9.9171 -> 7.9830
+        # Normalize for plug load
+        - lambda: if (x < 0.0260) return 0; else return (x - 0.0260);
+    voltage:
+      name: "HLW8012 Voltage"
+    power:
+      name: "HLW8012 Power"
+      filters:
+        - calibrate_linear:
+            - 0.0000 -> 0.5900 # Relay off no load
+            - 0.0000 -> 1.5600 # Relay on no load
+            - 198.5129 -> 87.8300
+            - 434.2469 -> 189.5000
+            - 628.6241 -> 273.9000
+            - 1067.0067 -> 460.1000
+            - 1619.8098 -> 699.2000
+            - 2043.0282 -> 885.0000
+        # Normalize for plug load
+        - lambda: if (x < 1.5600) return 0; else return (x - 1.5600);
+    energy:
+      name: "HLW8012 Energy"
+    update_interval: 15s
+
+  - platform: uptime
+    name: Uptime
