@@ -1,0 +1,125 @@
+esphome:
+  name: r4s-gate
+  friendly_name: r4s-gate
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+
+external_components:
+  - source: github://KomX/ESPHome-Ready4Sky/components
+
+logger:
+  baud_rate: 0
+
+api:
+  password: ""
+ota:
+  safe_mode: false
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+time:
+  platform: homeassistant
+
+ready4sky:
+  id: my_ble_gate
+  scan_parameters:
+    monitor: false
+    interval: 150 ms
+    window: 50 ms
+    duration: 30 s
+    active: true
+
+button:
+  - platform: restart
+    name: "Reboot"
+  - platform: template
+    name: Scan New Devices
+    icon: mdi:magnify
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(my_ble_gate).set_monitor(!id(my_ble_gate).get_monitor());
+          
+#9 button
+#3 hxc
+#4 hxd
+# 21 led
+
+skykettle:
+  - mac_address: d3:c4:02:ac:89:22
+    model: RK-G203S
+    cup_volume: 250
+    cup_correction: 1.0
+    informing:
+      temperature:
+        name: Temperature
+#      cup_quantity:
+#        name: Cup(s)
+      water_volume:
+        name: "Water Volume (approx.)"
+      signal_strength:
+        name: RSSI
+        filters:
+          - throttle: 15s
+      energy:
+        name: Energy
+      work_cycles:
+        name: Work Cycles
+      work_time:
+        name: Work Time
+      status_indicator:
+        name: Status
+    controlling:
+      power:
+        name: Power
+      target_temperature:
+        name: Target
+      boil_time_adjustment:
+        name: Boil Adj
+      state_led:
+        name: State Led
+      background_light:
+        name: Night Light
+      beeper:
+        name: Beeper
+
+sensor:
+  - platform: hx711
+    name: "Water Volume"
+    device_class: "volume_storage"
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    dout_pin: GPIO4
+    clk_pin: GPIO3
+    gain: 128
+    update_interval: 15s
+    filters:
+      - calibrate_linear:
+          - 562910 -> 0
+          - 853779 -> 1
+
+  - platform: uptime
+    name: Uptime
+
+
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: GPIO8
+    inverted: true
