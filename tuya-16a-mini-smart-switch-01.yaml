@@ -47,9 +47,16 @@ binary_sensor:
     pin:
       number: P23
       inverted: true
-#    on_state:
-#      then:
-#        - light.toggle: indicator_light
+    on_press:
+      if:
+        condition:
+          - switch.is_on: switch_01
+        then:
+          - light.turn_off: indicator_light
+          - switch.turn_off: switch_01
+        else:
+          - light.turn_on: indicator_light
+          - switch.turn_on: switch_01
 
 sensor:
   - platform: uptime
