@@ -56,16 +56,15 @@ canbus:
     cs_pin: GPIO4
     can_id: 4
     bit_rate: 125kbps
-#    on_frame:
-#      - can_id: ${0x100}
-#        then:
-#          - lambda: |-
-#              if(x.size() > 0) {
-#                switch(x[0]) {
-#                  case 0x0: id(can_bus_button).publish_state(false); break; // button release
-#                  case 0x1: id(can_bus_button).publish_state(true); break;  // button down
-#                }
-#              }
+    on_frame:
+      - can_id: 175
+        then:
+          - lambda: |-
+              if(x.size() > 0) {
+                switch(x[5]) {
+                  case 0x40: id(b_play).press(); break;
+                }
+              }
 
 light:
   - platform: binary
@@ -100,6 +99,7 @@ button:
           data: "AT+MN\r\n"
   - platform: template
     name: "play"
+    id: b_play
     on_press:
       - uart.write:
           id: fs_uart
