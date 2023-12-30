@@ -21,10 +21,9 @@ ota:
   password: ""
   safe_mode: false
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  fast_connect: true
+wifi: !include wifi-hotspot.yaml
+
+web_server:
 
 uart:
   - rx_pin: GPIO6
@@ -105,3 +104,27 @@ button:
       - uart.write:
           id: fs_uart
           data: "AT+MA\r\n"
+  - platform: template
+    name: "next"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+MD\r\n"
+  - platform: template
+    name: "prev"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+ME\r\n"
+  - platform: template
+    name: "vol_up"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+CK\r\n"
+  - platform: template
+    name: "vol_dn"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+CL\r\n"
