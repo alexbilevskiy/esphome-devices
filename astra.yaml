@@ -1,0 +1,107 @@
+esphome:
+  name: esp32-c3-02
+  friendly_name: astra
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+
+logger:
+  baud_rate: 115200
+
+api:
+  password: ""
+ota:
+  password: ""
+  safe_mode: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+uart:
+  - rx_pin: GPIO6
+    tx_pin: GPIO7
+    baud_rate: 9600
+    id: fs_uart
+    debug:
+      direction: BOTH
+      dummy_receiver: true
+      after:
+        delimiter: "\n"
+      sequence:
+        - lambda: UARTDebug::log_string(direction, bytes);
+
+spi:
+  id: McpSpi
+  clk_pin: GPIO1
+  mosi_pin: GPIO2
+  miso_pin: GPIO3
+
+binary_sensor:
+#  - platform: template
+#    name: "CAN Bus Button"
+#    id: "can_bus_button"
+
+canbus:
+  - platform: mcp2515
+    id: my_mcp2515
+    spi_id: McpSpi
+    cs_pin: GPIO4
+    can_id: 4
+    bit_rate: 125kbps
+#    on_frame:
+#      - can_id: ${0x100}
+#        then:
+#          - lambda: |-
+#              if(x.size() > 0) {
+#                switch(x[0]) {
+#                  case 0x0: id(can_bus_button).publish_state(false); break; // button release
+#                  case 0x1: id(can_bus_button).publish_state(true); break;  // button down
+#                }
+#              }
+
+light:
+  - platform: binary
+    name: "Indicator"
+    id: indicator_light
+    output: indicator_output
+    restore_mode: ALWAYS_OFF
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: GPIO8
+    inverted: true
+
+
+sensor:
+  - platform: uptime
+    name: Uptime
+
+
+switch:
+
+
+button:
+  - platform: restart
+    name: "Reboot"
+  - platform: template
+    name: "UART test"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+MN\r\n"
+  - platform: template
+    name: "play"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+MA\r\n"
