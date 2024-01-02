@@ -21,7 +21,11 @@ ota:
   password: ""
   safe_mode: false
 
-wifi: !include wifi-hotspot.yaml
+wifi:
+  ssid: !secret wifi_hotspot_ssid
+  password: !secret wifi_hotspot_password
+  fast_connect: true
+
 
 web_server:
 
@@ -55,7 +59,8 @@ canbus:
     spi_id: McpSpi
     cs_pin: GPIO4
     can_id: 4
-    bit_rate: 125kbps
+    bit_rate: 33kbps
+    clock: 8mhz
     on_frame:
       - can_id: 175
         then:
