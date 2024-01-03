@@ -14,6 +14,8 @@ esp32:
 
 logger:
   baud_rate: 115200
+  logs:
+    canbus: INFO
 
 api:
   password: ""
@@ -49,9 +51,6 @@ spi:
   miso_pin: GPIO3
 
 binary_sensor:
-#  - platform: template
-#    name: "CAN Bus Button"
-#    id: "can_bus_button"
 
 canbus:
   - platform: mcp2515
@@ -62,13 +61,27 @@ canbus:
     bit_rate: 33kbps
     clock: 8mhz
     on_frame:
-      - can_id: 175
+      - can_id: 0x175
         then:
           - lambda: |-
               if(x.size() > 0) {
                 switch(x[5]) {
                   case 0x40: id(b_play).press(); break;
+                  case 0x04: id(b_next).press(); break;
+                  case 0x05: id(b_prev).press(); break;
                 }
+              }
+      - can_id: 0x445
+        then:
+          - lambda: |-
+              if(x.size() > 0) {
+                id(sens_temp_out).publish_state((float) x[1]/2-40);
+              }
+      - can_id: 0x500
+        then:
+          - lambda: |-
+              if(x.size() > 0) {
+                id(sens_voltage).publish_state((float) x[1]/8);
               }
 
 light:
@@ -86,6 +99,15 @@ output:
 
 
 sensor:
+  - platform: template
+    name: "outside temp"
+    id: sens_temp_out
+    device_class: "temperature"
+  - platform: template
+    name: "voltage"
+    id: sens_voltage
+    device_class: "voltage"
+
   - platform: uptime
     name: Uptime
 
@@ -96,6 +118,7 @@ switch:
 button:
   - platform: restart
     name: "Reboot"
+
   - platform: template
     name: "UART test"
     on_press:
@@ -111,12 +134,14 @@ button:
           data: "AT+MA\r\n"
   - platform: template
     name: "next"
+    id: b_next
     on_press:
       - uart.write:
           id: fs_uart
           data: "AT+MD\r\n"
   - platform: template
     name: "prev"
+    id: b_prev
     on_press:
       - uart.write:
           id: fs_uart
