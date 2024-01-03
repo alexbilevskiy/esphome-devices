@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -x
-
-docker run --privileged --net=host -v /etc/localtime:/etc/localtime:ro -v "${PWD}":/config -v "${PWD}/.platformio":/root/.platformio -it ghcr.io/esphome/esphome $*
+# -e ESPHOME_DASHBOARD_USE_PING=true
+docker run --name esphome --rm --privileged --net=host -e TZ=Europe/Moscow -v /etc/localtime:/etc/localtime:ro -v "${PWD}":/config -v "${PWD}/.platformio":/root/.platformio -it ghcr.io/esphome/esphome $*
