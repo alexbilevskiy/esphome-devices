@@ -37,7 +37,7 @@ number:
     icon: mdi:tray-arrow-down
     number_datapoint: 3
     min_value: 0
-    max_value: 3
+    max_value: 4
     step: 1
     
     
