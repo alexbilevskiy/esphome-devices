@@ -3,6 +3,10 @@ esphome:
   friendly_name: presence-bedroom
   platformio_options:
     board_build.flash_mode: dio
+    build_flags:
+      - -std=gnu++17
+    build_unflags:
+      - -std=gnu++11
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -12,11 +16,33 @@ esp32:
     sdkconfig_options:
       CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
 
+external_components:
+  - source: github://dentra/esphome-components@2023.2.0
+    components: [crash_info, etl, otax, vport, esp32_usb_dis]
+    refresh: 1d
+  - source: github://dentra/esphome-tion@master
+    refresh: 1d
+
+preferences:
+  flash_write_interval: 10min
+
 logger:
+  logs:
+    esp-idf: INFO
+    component: ERROR
+
+esp32_ble_tracker:
+
+ble_client:
+  mac_address: c8:f3:89:cd:50:90
+  id: tion_ble_client
 
 api:
   password: ""
 ota:
+  on_begin:
+    then:
+      lambda: id(tion_ble_client).set_enabled(false);
   password: ""
   safe_mode: false
 
@@ -51,6 +77,44 @@ uart:
 ld2410:
   uart_id: ld2410_uart
   id: ld2410_1
+
+vport:
+  - platform: tion_lt
+    id: tionLt_ble_vport
+    ble_client_id: tion_ble_client
+    persistent_connection: true
+#    state_timeout: 15s
+    disable_scan: true
+
+climate:
+  - platform: tion_lt
+    id: tion_climate
+    name: None
+    vport_id: tionLt_ble_vport
+    buzzer:
+      name: "Buzzer"
+    led:
+      name: "Led"
+    outdoor_temperature:
+      name: "Outdoor Temperature"
+    heater_power:
+      name: "Heater power"
+    airflow_counter:
+      name: "Airflow counter"
+    filter_time_left:
+      name: "Filter Time Left"
+    filter_warnout:
+      name: "Filter Warnout"
+    version:
+      name: "Version"
+    presets:
+      comfort : { fan_speed: 3, target_temperature: 10, mode: fan_only }
+      eco : { fan_speed: 2, target_temperature: 10, mode: fan_only }
+    boost_time:
+      name: "Boost Time"
+    boost_time_left:
+      name: "Boost Time Left"
+    update_interval: 60s
 
 binary_sensor:
   - platform: ld2410
@@ -133,7 +197,6 @@ sensor:
   - platform: uptime
     name: Uptime
 
-
 switch:
   - platform: ld2410
     ld2410_id: ld2410_1
@@ -211,7 +274,9 @@ button:
       name: "restart"
     query_params:
       name: query params
-
+  - platform: restart
+    name: Restart
+    entity_category: diagnostic
 
 text_sensor:
   - platform: ld2410
