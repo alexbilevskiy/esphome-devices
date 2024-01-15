@@ -30,6 +30,7 @@ uart:
 i2c:
   sda: RX
   scl: D1
+#  frequency: 400kHz
 
 ld2410:
   uart_id: ld2410_uart
@@ -212,7 +213,9 @@ button:
       name: "restart"
     query_params:
       name: query params
-      
+  - platform: restart
+    name: Restart
+    entity_category: diagnostic
       
 text_sensor:
   - platform: ld2410

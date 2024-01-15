@@ -12,18 +12,17 @@ api:
   password: ""
 ota:
   password: ""
+  safe_mode: false
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
 
-captive_portal:
-
 uart:
   id: ld2410_uart
-  tx_pin: D3
-  rx_pin: D2
+  tx_pin: TX
+  rx_pin: RX
   baud_rate: 9600
   parity: NONE
   stop_bits: 1
@@ -203,7 +202,9 @@ button:
       name: "restart"
     query_params:
       name: query params
-
+  - platform: restart
+    name: Restart
+    entity_category: diagnostic
 
 text_sensor:
   - platform: ld2410
