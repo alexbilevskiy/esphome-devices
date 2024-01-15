@@ -1,44 +1,23 @@
-substitutions:
-  tion_mac_address: c8:f3:89:cd:50:90
-  node_name: esp32-bedroom
-  friendly_name: $node_name
-  node_add_mac_suffix: "false"
-  board: esp32dev
-  project_version: 2023.7.0
-  project_branch: $project_version
-  project_source: github://dentra/esphome-tion@$project_branch
-  project_source_refresh: 12h
-  project_id: tion
-  framework_type: arduino
-  vport_version: 2023.2.0
-  vport_source: github://dentra/esphome-components@$vport_version
-  vport_source_refresh: 1d
-
-esp32:
-  board: $board
-  framework:
-    type: $framework_type
-
 esphome:
-  name: $node_name
-  friendly_name: $friendly_name
-  name_add_mac_suffix: $node_add_mac_suffix
-  project:
-    name: "dentra.$project_id"
-    version: "$project_version ($framework_type)"
-  min_version: "2023.8.0" # can't use substitutions here
+  name: esp32-bedroom
+  friendly_name: esp32-bedroom
   platformio_options:
     build_flags:
       - -std=gnu++17
     build_unflags:
       - -std=gnu++11
 
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
 external_components:
-  - source: $vport_source
+  - source: github://dentra/esphome-components@2023.2.0
     components: [crash_info, etl, otax, vport, esp32_usb_dis]
-    refresh: $vport_source_refresh
-  - source: $project_source
-    refresh: $project_source_refresh
+    refresh: 1d
+  - source: github://dentra/esphome-tion@2023.7.0
+    refresh: 1d
 
 preferences:
   flash_write_interval: 10min
@@ -51,7 +30,7 @@ logger:
 esp32_ble_tracker:
 
 ble_client:
-  mac_address: $tion_mac_address
+  mac_address: c8:f3:89:cd:50:90
   id: tion_ble_client
 
 ota:
