@@ -23,6 +23,8 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
+  output_power: 20.5dbm
+  power_save_mode: none
 
 binary_sensor:
   - platform: gpio

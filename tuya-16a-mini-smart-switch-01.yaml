@@ -19,6 +19,8 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
+  output_power: 20.5dbm
+  power_save_mode: none
 
 switch:
   - platform: gpio
@@ -26,7 +28,7 @@ switch:
     inverted: false
     id: switch_01
     name: "Switch"
-    restore_mode: ALWAYS_OFF
+    restore_mode: RESTORE_DEFAULT_OFF
 
 light:
   - platform: binary
