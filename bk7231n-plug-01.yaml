@@ -8,8 +8,8 @@ esphome:
 
 bk72xx:
   board: generic-bk7231n-qfn32-tuya
-  framework:
-    version: dev
+#  framework:
+#    version: dev
 
 logger:
   baud_rate: 0
@@ -53,7 +53,11 @@ switch:
     inverted: false
     id: switch_01
     name: "Switch"
-    restore_mode: ALWAYS_OFF
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - light.turn_on: light_01
+    on_turn_off:
+      - light.turn_off: light_01
 
 #status_led:
 #  pin: P8
@@ -72,43 +76,51 @@ output:
 
 sensor:
   - platform: hlw8012
+    model: BL0937
     sel_pin:
       number: P24
       inverted: true
-    cf_pin: P6
-    cf1_pin: P7
-    current_resistor: "0.00225"
-    voltage_divider: "655"
+    cf_pin:
+      number: P7
+      inverted: true
+    cf1_pin:
+      number: P6
+      inverted: true
+    change_mode_every: 3
+#    current_resistor: "0.00225"
+#    voltage_divider: "655"
+    voltage_divider:  "775"               # LOWER VALUE GIVES LOWER VOLTAGE
+    current_resistor: "0.0009"          # HIGHER VALUE GIVES LOWER WATTAGE
     current:
       name: "HLW8012 Current"
-      filters:
-        - calibrate_linear:
-            - 0.0000 -> 0.0110 # Relay off no load
-            - 0.0097 -> 0.0260 # Relay on no load
-            - 0.9270 -> 0.7570
-            - 2.0133 -> 1.6330
-            - 2.9307 -> 2.3750
-            - 5.4848 -> 4.4210
-            - 8.4308 -> 6.8330
-            - 9.9171 -> 7.9830
+#      filters:
+#        - calibrate_linear:
+#            - 0.0000 -> 0.0110 # Relay off no load
+#            - 0.0097 -> 0.0260 # Relay on no load
+#            - 0.9270 -> 0.7570
+#            - 2.0133 -> 1.6330
+#            - 2.9307 -> 2.3750
+#            - 5.4848 -> 4.4210
+#            - 8.4308 -> 6.8330
+#            - 9.9171 -> 7.9830
         # Normalize for plug load
-        - lambda: if (x < 0.0260) return 0; else return (x - 0.0260);
+#        - lambda: if (x < 0.0260) return 0; else return (x - 0.0260);
     voltage:
       name: "HLW8012 Voltage"
     power:
       name: "HLW8012 Power"
-      filters:
-        - calibrate_linear:
-            - 0.0000 -> 0.5900 # Relay off no load
-            - 0.0000 -> 1.5600 # Relay on no load
-            - 198.5129 -> 87.8300
-            - 434.2469 -> 189.5000
-            - 628.6241 -> 273.9000
-            - 1067.0067 -> 460.1000
-            - 1619.8098 -> 699.2000
-            - 2043.0282 -> 885.0000
+#      filters:
+#        - calibrate_linear:
+#            - 0.0000 -> 0.5900 # Relay off no load
+#            - 0.0000 -> 1.5600 # Relay on no load
+#            - 198.5129 -> 87.8300
+#            - 434.2469 -> 189.5000
+#            - 628.6241 -> 273.9000
+#            - 1067.0067 -> 460.1000
+#            - 1619.8098 -> 699.2000
+#            - 2043.0282 -> 885.0000
         # Normalize for plug load
-        - lambda: if (x < 1.5600) return 0; else return (x - 1.5600);
+#        - lambda: if (x < 1.5600) return 0; else return (x - 1.5600);
     energy:
       name: "HLW8012 Energy"
     update_interval: 15s
