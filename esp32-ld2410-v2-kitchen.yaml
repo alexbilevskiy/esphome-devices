@@ -201,10 +201,12 @@ button:
     factory_reset:
       name: "factory reset"
     restart:
-      name: "restart"
+      name: "restart ld2410"
     query_params:
       name: query params
-      
+  - platform: restart
+    name: Restart
+    entity_category: diagnostic
       
 text_sensor:
   - platform: ld2410

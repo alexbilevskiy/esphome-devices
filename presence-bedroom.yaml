@@ -271,7 +271,7 @@ button:
     factory_reset:
       name: "factory reset"
     restart:
-      name: "restart"
+      name: "restart ld2410"
     query_params:
       name: query params
   - platform: restart
