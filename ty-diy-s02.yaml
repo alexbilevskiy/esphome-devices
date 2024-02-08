@@ -29,10 +29,18 @@ tuya:
 switch:
   - platform: "tuya"
     name: "Channel 1"
+    id: sw_ch_01
     switch_datapoint: 1
+    on_turn_on:
+      - delay: 60s
+      - switch.turn_off: sw_ch_01
   - platform: "tuya"
     name: "Channel 2"
+    id: sw_ch_02
     switch_datapoint: 2
+    on_turn_on:
+      - delay: 60s
+      - switch.turn_off: sw_ch_02
   - platform: "tuya"
     name: "Power on status"
     switch_datapoint: 101
