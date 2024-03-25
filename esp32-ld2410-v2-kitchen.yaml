@@ -39,12 +39,20 @@ light:
     id: indicator_light
     name: "Indicator"
     output: indicator_output
+  - platform: monochromatic
+    icon: mdi:led-strip
+    output: pwm_output
+    name: "PWM 01"
 
 output:
   - id: indicator_output
     platform: gpio
     pin: GPIO2
     inverted: false
+  - platform: ledc
+    pin: GPIO27
+    frequency: 1000 Hz
+    id: pwm_output
     
 binary_sensor:
   - platform: ld2410
