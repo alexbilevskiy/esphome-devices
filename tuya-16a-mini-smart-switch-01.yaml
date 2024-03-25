@@ -22,6 +22,9 @@ wifi:
   output_power: 20.5dbm
   power_save_mode: none
 
+dallas:
+  - pin: RX1
+
 switch:
   - platform: gpio
     pin: P7
@@ -61,6 +64,9 @@ binary_sensor:
           - switch.turn_on: switch_01
 
 sensor:
+  - platform: dallas
+    address: 0x580000003a35c428
+    name: "e_0x580000003a35c428"
   - platform: uptime
     name: Uptime
 
