@@ -43,6 +43,7 @@ light:
     icon: mdi:led-strip
     output: pwm_output
     name: "PWM 01"
+    id: pwm_01
 
 output:
   - id: indicator_output
@@ -62,9 +63,24 @@ binary_sensor:
       on_press:
         then:
           - light.turn_on: indicator_light
+          - if:
+              condition:
+                not:
+                  api.connected:
+              then:
+                - light.turn_on:
+                    id: pwm_01
+                    brightness: 50%
       on_release:
         then:
           - light.turn_off: indicator_light
+          - if:
+              condition:
+                not:
+                  api.connected:
+              then:
+                - light.turn_off:
+                    id: pwm_01
     has_moving_target:
       name: Moving Target
     has_still_target:
