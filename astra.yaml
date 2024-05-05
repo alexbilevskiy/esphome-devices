@@ -19,6 +19,7 @@ logger:
 
 api:
   password: ""
+  reboot_timeout: 0s
 ota:
   password: ""
   safe_mode: false
@@ -28,6 +29,11 @@ wifi:
   password: !secret wifi_hotspot_password
   fast_connect: true
 
+time:
+  - platform: sntp
+    timezone: Europe/Moscow
+
+wireguard: !include wg.yaml
 
 web_server:
 
