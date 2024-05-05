@@ -14,8 +14,8 @@ esp32:
 
 logger:
   baud_rate: 115200
-  logs:
-    canbus: INFO
+  level: VERY_VERBOSE
+
 
 api:
   password: ""
