@@ -1,5 +1,6 @@
 esphome:
   name: esp32-hub75
+  friendly_name: esp32-hub75
 
 esp32:
   board: lolin_s2_mini
@@ -8,7 +9,7 @@ esp32:
     type: arduino
 
 external_components:
-  - source: github://TillFleisch/ESPHome-HUB75-MatrixDisplayWrapper@main
+  - source: github://TillFleisch/ESPHome-HUB75-MatrixDisplayWrapper@v2.0.1
 
 logger:
 
@@ -58,7 +59,7 @@ display:
     width: 64
     height: 32
     chain_length: 1
-    brightness: 128
+    brightness: 10
     update_interval: 16ms
     R1_pin: GPIO40
     G1_pin: GPIO39
@@ -81,13 +82,24 @@ display:
     #use_custom_library:
 
     lambda: |-
-      it.printf(0, 0, id(f4x6), "%.0f° outside", id(ya_fact).state);
+      //it.printf(0, 0, id(f4x6), "%.0f° outside", id(ya_fact).state);
+
       //it.printf(0, 0, id(roboto), "%.0f°", id(ya_fact).state);
       //it.print(0, 0, id(f4x6), "Hello World!");
-      it.print(0, 7, id(f5x8), "Hello World!");
-      it.strftime(0, 12, id(f10x20), "%H", id(esptime).now());
-      it.strftime(20, 12, id(f10x20), "%M", id(esptime).now());
-      it.strftime(40, 12, id(f10x20), "%S", id(esptime).now());
+
+
+
+      //it.print(0, 7, id(f5x8), "Hello World!");
+      
+      it.printf(1, 1, id(f4x6), "%.1fL %.0f°", id(r4s_volume).state, id(r4s_temp).state);
+      it.printf(1, 7, id(f4x6), "%.0fkW", id(main_power).state);
+
+      //it.strftime(0, 12, id(f10x20), "%H", id(esptime).now());
+      //it.strftime(20, 12, id(f10x20), "%M", id(esptime).now());
+      //it.strftime(40, 12, id(f10x20), "%S", id(esptime).now());
+      
+      it.strftime(56, 26, id(f4x6), "%S", id(esptime).now());
+
       //it.print(0, 12, id(f10x20), "11234");
 
 switch:
@@ -116,16 +128,16 @@ sensor:
     name: "yandex fact temp"
     entity_id: sensor.temperature_fact
     id: ya_fact
-
-
-
-
-
-
-
-
-
-
-
-
+  - platform: homeassistant
+    name: "kettle volume"
+    entity_id: sensor.r4s_gate_water_volume
+    id: r4s_volume
+  - platform: homeassistant
+    name: "kettle temp"
+    entity_id: sensor.r4s_gate_temperature
+    id: r4s_temp
+  - platform: homeassistant
+    name: "main power"
+    entity_id: sensor.dds238_power
+    id: main_power
 
