@@ -22,6 +22,9 @@ ota:
   safe_mode: false
   password: ""
 
+preferences:
+  flash_write_interval: 1min
+
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -60,7 +63,7 @@ display:
       //it.print(0, 14, id(f5x8), "Hello World!");
       //it.print(0, 34, id(f10x20), "Hello World!");
       
-      bool offline = id(status).state == "Off Line";
+      bool offline = id(availability).state == false;
       
       if(id(display_override).state) {
           if(id(display_power).state == false) {
@@ -85,6 +88,7 @@ display:
           it.printf(0, 0, id(f10x20), "Offline");    
       }
       it.printf(0, 16, id(f10x20), "%.2fL", id(volume).state);
+      it.printf(128, 20, id(fh08), TextAlign::TOP_RIGHT, "prev %.2fL", id(previous_volume).state);
 
       if (!offline) {
           it.printf(0, 32, id(f10x20), "Power %s", id(power).state ? "ON" : "OFF");
@@ -111,7 +115,7 @@ button:
     on_press:
       - lambda: |-
           id(my_ble_gate).set_monitor(!id(my_ble_gate).get_monitor());
-          
+
 #9 button
 #3 hxc
 #4 hxd
@@ -128,8 +132,8 @@ skykettle:
         id: temp
 #      cup_quantity:
 #        name: Cup(s)
-      water_volume:
-        name: "Water Volume (approx.)"
+#      water_volume:
+#        name: "Water Volume (approx.)"
       signal_strength:
         name: RSSI
         filters:
@@ -168,12 +172,59 @@ sensor:
     dout_pin: GPIO4
     clk_pin: GPIO3
     gain: 128
-    update_interval: 5s
+    update_interval: 1s
     id: volume
     filters:
       - calibrate_linear:
           - 562910 -> 0
           - 853779 -> 1
+  - platform: template
+    name: "Water Previous volume"
+    id: previous_volume
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    update_interval: 1s
+  - platform: template
+    name: "Water True volume"
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      if(id(availability).state == false) {
+          return NAN;
+      }
+      if(id(volume).state <= 0.01) {
+          return NAN;
+      }
+      return id(volume).state;
+    filters:
+#      - lambda: |-
+#          if (x == NAN) {
+#              return {};
+#          }
+#          return x;
+      - filter_out: NAN
+      - median:
+          window_size: 5
+          send_every: 4
+          send_first_at: 3
+    on_value:
+      then:
+        lambda: |-
+          if(id(previous_volume).state == NAN) {
+              id(previous_volume).publish_state(x);
+              return;
+          }
+          if(x - id(previous_volume).state < 0.11) {
+              id(previous_volume).publish_state(x);
+              return;
+          }
+          id(previous_volume).publish_state(x);
+          if(x <= 0.3) {
+              return;
+          }
+          id(power).turn_on();
+
 
   - platform: uptime
     name: Uptime
@@ -183,6 +234,16 @@ binary_sensor:
     name: "kitchen presence"
     entity_id: binary_sensor.esp32_ld2410_v2_presence
     id: kitchen_presence
+  - platform: template
+    name: "kettle availability"
+    id: availability
+    icon: "mdi:cloud-question-outline"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(status).state == "Off Line") {
+          return false;
+      }
+      return true;
 
 light:
   - platform: binary
@@ -208,3 +269,5 @@ switch:
     id: display_power
     name: "display power"
     icon: "mdi:monitor"
+  - platform: factory_reset
+    name: Restart with Factory Default Settings
