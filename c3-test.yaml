@@ -38,6 +38,7 @@ light:
     id: indicator_light
     name: "Indicator"
     output: indicator_output
+    restore_mode: ALWAYS_ON
 
 output:
   - id: indicator_output
