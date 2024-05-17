@@ -28,7 +28,69 @@ wifi:
   fast_connect: true
 
 time:
-  platform: homeassistant
+  - platform: homeassistant
+    id: esptime
+    timezone: Europe/Moscow
+
+
+i2c:
+  sda: GPIO9
+  scl: GPIO10
+  scan: true
+  frequency: 400kHz
+
+font:
+  - file: "fonts/4x6.bdf"
+    id: f4x6
+    size: 6
+  - file: "fonts/5x8.bdf"
+    id: f5x8
+  - file: "fonts/10x20.bdf"
+    id: f10x20
+  - file: "fonts/helvR08.bdf"
+    id: fh08
+
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    lambda: |-
+      //it.print(0, 0, id(f4x6), "Hello World!");
+      //it.print(0, 14, id(f5x8), "Hello World!");
+      //it.print(0, 34, id(f10x20), "Hello World!");
+      
+      bool offline = id(status).state == "Off Line";
+      
+      if(id(display_override).state) {
+          if(id(display_power).state == false) {
+              it.print(rand() % 100, rand() % 60, id(f4x6), "Who are you?");
+              return;              
+          }
+      } else {
+          if(!isnan(id(kitchen_presence).state) && id(kitchen_presence).state == false) {
+              it.print(rand() % 100, rand() % 60, id(f4x6), "Who are you?");
+              return;              
+          }
+      }
+      
+      esphome::ESPTime now = id(esptime).now();
+      it.strftime(80, 0, id(f10x20), "%H", now);
+      it.print(98, 0, id(f10x20), ":");
+      it.strftime(106, 0, id(f10x20), "%M", now);
+      
+      if (!offline) {
+          it.printf(0, 0, id(f10x20), "%.0f°C", id(temp).state);
+      } else {
+          it.printf(0, 0, id(f10x20), "Offline");    
+      }
+      it.printf(0, 16, id(f10x20), "%.2fL", id(volume).state);
+
+      if (!offline) {
+          it.printf(0, 32, id(f10x20), "Power %s", id(power).state ? "ON" : "OFF");
+          it.printf(0, 52, id(fh08), "%.0f runs", id(work_cycles).state);
+      }
+      
 
 ready4sky:
   id: my_ble_gate
@@ -59,10 +121,11 @@ skykettle:
   - mac_address: d3:c4:02:ac:89:22
     model: RK-G203S
     cup_volume: 250
-    cup_correction: 1.0
+    cup_correction: 1.636886
     informing:
       temperature:
         name: Temperature
+        id: temp
 #      cup_quantity:
 #        name: Cup(s)
       water_volume:
@@ -75,13 +138,16 @@ skykettle:
         name: Energy
       work_cycles:
         name: Work Cycles
+        id: work_cycles
       work_time:
         name: Work Time
       status_indicator:
         name: Status
+        id: status
     controlling:
       power:
         name: Power
+        id: power
       target_temperature:
         name: Target
       boil_time_adjustment:
@@ -102,7 +168,8 @@ sensor:
     dout_pin: GPIO4
     clk_pin: GPIO3
     gain: 128
-    update_interval: 15s
+    update_interval: 5s
+    id: volume
     filters:
       - calibrate_linear:
           - 562910 -> 0
@@ -111,6 +178,11 @@ sensor:
   - platform: uptime
     name: Uptime
 
+binary_sensor:
+  - platform: homeassistant
+    name: "kitchen presence"
+    entity_id: binary_sensor.esp32_ld2410_v2_presence
+    id: kitchen_presence
 
 light:
   - platform: binary
@@ -123,3 +195,16 @@ output:
     platform: gpio
     pin: GPIO8
     inverted: true
+
+switch:
+  - platform: template
+    optimistic: true
+    id: display_override
+    restore_mode: ALWAYS_OFF
+    name: "display override"
+    icon: "mdi:monitor-lock"
+  - platform: template
+    optimistic: true
+    id: display_power
+    name: "display power"
+    icon: "mdi:monitor"
