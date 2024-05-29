@@ -1,0 +1,61 @@
+#EKF (oem??) sdsh-1g-wf
+esphome:
+  name: bk7231n-1gang-dimmer
+  friendly_name: bk7231n-1gang-dimmer
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+  framework:
+    version: dev
+
+logger:
+api:
+  password: ""
+ota:
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  
+
+uart:
+  rx_pin: RX1
+  tx_pin: TX1
+  baud_rate: 9600
+
+tuya:
+
+light:
+  - platform: "tuya"
+    name: "Dimmer"
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    switch_datapoint: 1
+    max_value: 1000
+
+number:
+  - platform: "tuya"
+    name: "min value"
+    number_datapoint: 3
+    min_value: 0
+    max_value: 1000
+    step: 1
+
+select:
+  - platform: "tuya"
+    id: "dimmer_mode"
+    name: "Dimming Mode"
+    enum_datapoint: 4
+    options:
+      0: Mode 1 # Index 0
+      1: Mode 2 # Index 1
+      2: Mode 3 # Index 2
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"
+  - platform: uptime
+    name: Uptime
+

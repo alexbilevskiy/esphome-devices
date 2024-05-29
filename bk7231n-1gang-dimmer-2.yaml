@@ -1,0 +1,88 @@
+#moes WM-105-M
+esphome:
+  name: bk7231n-1gang-dimmer-2
+  friendly_name: bk7231n-1gang-dimmer-2
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+  framework:
+    version: dev
+
+logger:
+  baud_rate: 0
+api:
+  password: ""
+ota:
+  password: ""
+  safe_mode: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  
+
+uart:
+  rx_pin: RX2
+  tx_pin: TX2
+  baud_rate: 9600
+
+tuya:
+
+#  [13:01:30][C][tuya:041]: Tuya:
+#  [13:01:30][C][tuya:058]:   Datapoint 2: int value (value: 329)
+#  [13:01:30][C][tuya:058]:   Datapoint 3: int value (value: 0)
+#  [13:01:30][C][tuya:056]:   Datapoint 1: switch (value: OFF)
+#  [13:01:31][C][tuya:058]:   Datapoint 6: int value (value: 0)
+#  [13:01:31][C][tuya:058]:   Datapoint 5: int value (value: 1000)
+#  [13:01:31][C][tuya:062]:   Datapoint 4: enum (value: 0)
+#  [13:01:31][C][tuya:062]:   Datapoint 14: enum (value: 0)
+#  [13:01:31][C][tuya:062]:   Datapoint 47: enum (value: 2)
+#  [13:01:31][C][tuya:058]:   Datapoint 31: int value (value: 5)
+#  [13:01:31][C][tuya:074]:   Product: '{"p":"q0goz7z6flczpwrn","v":"2.3.0","m":2}'
+
+light:
+  - platform: "tuya"
+    name: "Dimmer"
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    switch_datapoint: 1
+    max_value: 1000
+
+select:
+  - platform: "tuya"
+    id: "dimmer_mode"
+    name: "Dimming Mode"
+    enum_datapoint: 4
+    options:
+      0: Mode 1 # Index 0
+      1: Mode 2 # Index 1
+      2: Mode 3 # Index 2
+
+number:
+  - platform: "tuya"
+    name: "transition time"
+    number_datapoint: 31
+    min_value: 0
+    max_value: 15
+    step: 1
+  - platform: "tuya"
+    name: "min value"
+    number_datapoint: 6
+    min_value: 0
+    max_value: 1000
+    step: 1
+  - platform: "tuya"
+    name: "max value"
+    number_datapoint: 5
+    min_value: 0
+    max_value: 1000
+    step: 1
+
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"
+  - platform: uptime
+    name: Uptime
+
