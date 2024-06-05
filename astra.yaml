@@ -13,10 +13,10 @@ esp32:
       CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
 
 logger:
-  baud_rate: 115200
-  level: VERY_VERBOSE
+  level: VERBOSE
   logs:
-    canbus: INFO
+    canbus: VERBOSE
+    mcp2515: VERBOSE
 
 
 api:
@@ -30,7 +30,9 @@ wifi:
   ssid: !secret wifi_hotspot_ssid
   password: !secret wifi_hotspot_password
   fast_connect: true
+  power_save_mode: none
   use_address: 10.4.0.4
+  output_power: 8.5
 
 time:
   - platform: sntp
@@ -41,8 +43,8 @@ wireguard: !include wg.yaml
 web_server:
 
 uart:
-  - rx_pin: GPIO6
-    tx_pin: GPIO7
+  - rx_pin: GPIO9
+    tx_pin: GPIO10
     baud_rate: 9600
     id: fs_uart
     debug:
@@ -55,9 +57,9 @@ uart:
 
 spi:
   id: McpSpi
-  clk_pin: GPIO1
-  mosi_pin: GPIO2
-  miso_pin: GPIO3
+  clk_pin: GPIO4
+  mosi_pin: GPIO6
+  miso_pin: GPIO5
 
 binary_sensor:
 
@@ -65,7 +67,7 @@ canbus:
   - platform: mcp2515
     id: my_mcp2515
     spi_id: McpSpi
-    cs_pin: GPIO4
+    cs_pin: GPIO7
     can_id: 4
     bit_rate: 33kbps
     clock: 8mhz
@@ -167,3 +169,29 @@ button:
       - uart.write:
           id: fs_uart
           data: "AT+CL\r\n"
+
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: ESP IP Address
+      address_0:
+        name: ESP IP Address 0
+      address_1:
+        name: ESP IP Address 1
+      address_2:
+        name: ESP IP Address 2
+      address_3:
+        name: ESP IP Address 3
+      address_4:
+        name: ESP IP Address 4
+    ssid:
+      name: ESP Connected SSID
+    bssid:
+      name: ESP Connected BSSID
+    mac_address:
+      name: ESP Mac Wifi Address
+    scan_results:
+      name: ESP Latest Scan Results
+    dns_address:
+      name: ESP DNS Address
