@@ -63,9 +63,17 @@ output:
     pin: GPIO2
     frequency: 1000 Hz
     id: pwm_output
+  - platform: esp8266_pwm
+    pin: GPIO0
+    frequency: 1000 Hz
+    id: pwm_output_red
 
 light:
   - platform: monochromatic
     icon: mdi:light-recessed
     output: pwm_output
     name: "Food light"
+  - platform: monochromatic
+    icon: mdi:light-recessed
+    output: pwm_output_red
+    name: "Red light"
