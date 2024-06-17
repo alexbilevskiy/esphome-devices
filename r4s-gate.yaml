@@ -152,6 +152,9 @@ skykettle:
       power:
         name: Power
         id: power
+        on_turn_on:
+          lambda: |-
+            id(before_start).publish_state(id(volume).state);
       target_temperature:
         name: Target
       boil_time_adjustment:
@@ -181,6 +184,12 @@ sensor:
   - platform: template
     name: "Water Previous volume"
     id: previous_volume
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    update_interval: 1s
+  - platform: template
+    name: "Water volume before start"
+    id: before_start
     unit_of_measurement: "L"
     accuracy_decimals: 2
     update_interval: 1s
