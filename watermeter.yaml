@@ -1,0 +1,93 @@
+esphome:
+  name: watermeter
+  friendly_name: watermeter
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+
+logger:
+  baud_rate: 115200
+
+api:
+  password: ""
+ota:
+  safe_mode: false
+  password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  power_save_mode: none
+  output_power: 8.5
+
+
+i2c:
+  sda: GPIO3
+  scl: GPIO4
+  scan: true
+  frequency: 400kHz
+
+
+font:
+  - file: "fonts/4x6.bdf"
+    id: f4x6
+    size: 6
+  - file: "fonts/5x8.bdf"
+    id: f5x8
+  - file: "fonts/10x20.bdf"
+    id: f10x20
+  - file: "fonts/helvR08.bdf"
+    id: fh08
+
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    lambda: |-
+      //it.print(0, 0, id(f4x6), "Hello World!");
+      //it.print(0, 14, id(f5x8), "Hello World!");
+      //it.print(0, 34, id(f10x20), "Hello World!");
+      it.printf(0, 0, id(f10x20), "%s", id(hall_01).state ? "ON" : "OFF");
+
+
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+    restore_mode: ALWAYS_ON
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: GPIO8
+    inverted: true
+
+
+
+sensor:
+  - platform: uptime
+    name: Uptime
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO1
+      inverted: false
+      mode:
+        input: true
+        pullup: true
+    name: "hall 01"
+    id: hall_01
+    on_state:
+      then:
+        - light.toggle: indicator_light
