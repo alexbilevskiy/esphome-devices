@@ -19,6 +19,7 @@ logger:
 
 api:
   password: ""
+  reboot_timeout: 0s
 ota:
   safe_mode: false
   password: ""
@@ -29,6 +30,7 @@ wifi:
   fast_connect: true
   power_save_mode: none
   output_power: 8.5
+  reboot_timeout: 0s
 
 uart:
   - rx_pin:
@@ -67,10 +69,12 @@ display:
       //it.print(0, 14, id(f5x8), "Hello World!");
       //it.print(0, 34, id(f10x20), "Hello World!");
       
-      it.printf(0, 0, id(f5x8), "%.0f", id(battery_status).state);
+      //it.printf(0, 0, id(f5x8), "%.0f", id(battery_status).state);
+      it.printf(0, 0, id(f5x8), "%2.0f %d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d", id(battery_status).state, id(f_01).state, id(f_02).state, id(f_03).state, id(f_04).state, id(f_05).state, id(f_06).state, id(f_07).state, id(f_08).state, id(f_09).state, id(f_10).state, id(f_11).state, id(f_12).state, id(f_13).state, id(f_14).state, id(f_15).state, id(f_16).state );
       it.printf(0, 10, id(f5x8), "%.1f %%", id(battery_remainig_capacity_perc).state);
       it.printf(0, 20, id(f5x8), "%.2f A %.2f V", id(battery_current).state, id(battery_voltage).state);
-      it.printf(0, 30, id(f5x8), "%.0f + %.0f °C", id(battery_temp_0).state, id(battery_temp_1).state);
+      it.printf(0, 30, id(f5x8), "%.3f W", id(battery_power).state);
+      it.printf(0, 40, id(f5x8), "%.0f + %.0f °C", id(battery_temp_0).state, id(battery_temp_1).state);
 
 
 
@@ -130,6 +134,7 @@ sensor:
         unit_of_measurement: "V"
         accuracy_decimals: 3
       - name: "Power"
+        id: battery_power
         device_class: "power"
         unit_of_measurement: "W"
         accuracy_decimals: 3
@@ -205,34 +210,50 @@ binary_sensor:
       return {nbst->s_00,nbst->s_01,nbst->s_02,nbst->s_03,nbst->s_04,nbst->s_05,nbst->s_06,nbst->s_07,nbst->s_08,nbst->s_09,nbst->s_10,nbst->s_11,nbst->s_12,nbst->s_13,nbst->s_14,nbst->s_15};
     binary_sensors:
       - name: "flag: config valid"
+        id: f_01
         entity_category: "diagnostic"
       - name: "flag: battery activated"
+        id: f_02
         entity_category: "diagnostic"
       - name: "flag: battery charge protection"
+        id: f_03
         entity_category: "diagnostic"
       - name: "flag: chraging enabled"
+        id: f_04
         entity_category: "diagnostic"
       - name: "flag: register write lock"
+        id: f_05
         entity_category: "diagnostic"
       - name: "flag: is discharging"
+        id: f_06
         entity_category: "diagnostic"
       - name: "flag: is charging"
+        id: f_07
         entity_category: "diagnostic"
       - name: "flag: is charger inserted"
+        id: f_08
         entity_category: "diagnostic"
       - name: "flag: discharge error"
+        id: f_09
         entity_category: "diagnostic"
       - name: "flag: overvoltage detected"
+        id: f_10
         entity_category: "diagnostic"
       - name: "flag: overheat"
+        id: f_11
         entity_category: "diagnostic"
       - name: "flag: n/a 1"
+        id: f_12
         entity_category: "diagnostic"
       - name: "flag: n/a 2"
+        id: f_13
         entity_category: "diagnostic"
       - name: "flag: charge error"
+        id: f_14
         entity_category: "diagnostic"
       - name: "flag: deep UV error"
+        id: f_15
         entity_category: "diagnostic"
       - name: "flag: n/a 3"
+        id: f_16
         entity_category: "diagnostic"
