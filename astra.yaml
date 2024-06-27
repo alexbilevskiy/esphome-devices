@@ -33,6 +33,7 @@ wifi:
   power_save_mode: none
   use_address: 10.4.0.4
   output_power: 8.5
+  reboot_timeout: 0s
 
 time:
   - platform: sntp
@@ -94,6 +95,12 @@ canbus:
               if(x.size() > 0) {
                 id(sens_voltage).publish_state((float) x[1]/8);
               }
+      - can_id: 0x145
+        then:
+          - lambda: |-
+              if(x.size() > 0) {
+                id(sens_coolant).publish_state((float) x[3]-40);
+              }
 
 light:
   - platform: binary
@@ -118,6 +125,10 @@ sensor:
     name: "voltage"
     id: sens_voltage
     device_class: "voltage"
+  - platform: template
+    name: "coolant"
+    id: sens_coolant
+    device_class: "temperature"
 
   - platform: uptime
     name: Uptime
