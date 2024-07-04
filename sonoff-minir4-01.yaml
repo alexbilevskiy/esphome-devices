@@ -34,7 +34,7 @@ switch:
     id: relay_01
     restore_mode: ALWAYS_OFF
     on_turn_on:
-      - delay: 30s
+      - delay: 60s
       - switch.turn_off: relay_01
 
 binary_sensor:
