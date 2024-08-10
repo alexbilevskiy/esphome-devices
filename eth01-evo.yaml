@@ -46,6 +46,12 @@ ethernet:
 
 
 light:
+#  - platform: binary
+#    id: led_internal
+#    name: "led internal"
+#    output: out_led_internal
+#    restore_mode: ALWAYS_ON
+
   - platform: binary
     id: led_01
     name: "led 01"
@@ -59,6 +65,12 @@ light:
     restore_mode: ALWAYS_ON
 
 output:
+# is used by ethernet
+#  - id: out_led_internal
+#    platform: gpio
+#    pin: GPIO8
+#    inverted: true
+
   - id: out_led_01
     platform: gpio
     pin: GPIO5
