@@ -10,7 +10,10 @@ logger:
 api:
   password: ""
 ota:
+  platform: esphome
   password: ""
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid
@@ -20,9 +23,14 @@ wifi:
 switch:
   - platform: gpio
     pin: 2
+    id: honk
     inverted: true
     name: "Honk"
+    icon: "mdi:bullhorn"
     restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 2s
+      - switch.turn_off: honk
 
 sensor:
   - platform: uptime

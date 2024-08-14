@@ -13,8 +13,11 @@ logger:
 api:
   password: ""
 ota:
+  platform: esphome
   password: ""
-  safe_mode: false
+safe_mode:
+  disabled: true
+
 
 wifi:
   ssid: !secret wifi_ssid
