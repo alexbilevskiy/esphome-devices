@@ -43,6 +43,7 @@ tuya:
 
 light:
   - platform: "tuya"
+    id: dimmer
     name: "Dimmer"
     dimmer_datapoint: 2
     min_value_datapoint: 3
@@ -79,6 +80,43 @@ number:
     max_value: 1000
     step: 1
 
+button:
+  - platform: template
+    name: "Preset 20%"
+    on_press:
+      - light.turn_on:
+          id: dimmer
+          brightness: 20%
+  - platform: template
+    name: "Preset 30%"
+    on_press:
+      - light.turn_on:
+          id: dimmer
+          brightness: 30%
+  - platform: template
+    name: "Preset 40%"
+    on_press:
+      - light.turn_on:
+          id: dimmer
+          brightness: 40%
+  - platform: template
+    name: "Preset 50%"
+    on_press:
+      - light.turn_on:
+          id: dimmer
+          brightness: 50%
+  - platform: template
+    name: "Preset 70%"
+    on_press:
+      - light.turn_on:
+          id: dimmer
+          brightness: 70%
+  - platform: template
+    name: "Preset 100%"
+    on_press:
+      - light.turn_on:
+          id: dimmer
+          brightness: 100%
 
 sensor:
   - platform: internal_temperature
