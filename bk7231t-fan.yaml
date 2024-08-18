@@ -42,9 +42,60 @@ tuya:
 fan:
   - platform: "tuya"
     name: "fan"
+    id: tuya_fan
     switch_datapoint: 1
     speed_datapoint: 4
     speed_count: 100
+
+button:
+  - platform: template
+    name: "Preset 10%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 10
+  - platform: template
+    name: "Preset 20%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 20
+  - platform: template
+    name: "Preset 25%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 25
+  - platform: template
+    name: "Preset 30%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 30
+  - platform: template
+    name: "Preset 40%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 40
+  - platform: template
+    name: "Preset 50%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 50
+  - platform: template
+    name: "Preset 70%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 70
+  - platform: template
+    name: "Preset 100%"
+    on_press:
+      - fan.turn_on:
+          id: tuya_fan
+          speed: 100
 
 sensor:
   - platform: internal_temperature
