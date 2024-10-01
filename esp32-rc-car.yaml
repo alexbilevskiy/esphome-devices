@@ -9,15 +9,16 @@ esp32:
     version: recommended
 
 external_components:
-#  - source: github://fsievers22/esphome-ble-remote@master
-#    components: [ ble_client_hid ]
-  - source:
-      type: local
-      path: esphome-ble-remote/components
+  - source: github://fsievers22/esphome-ble-remote@dev
     components: [ ble_client_hid ]
+    refresh: 0s
+#  - source:
+#      type: local
+#      path: esphome-ble-remote/components
+#    components: [ ble_client_hid ]
 
 logger:
-  baud_rate: 0
+#  baud_rate: 0
 
 api:
   password: ""
@@ -35,6 +36,7 @@ esp32_ble_tracker:
 ble_client:
   - id: ble_client_1
     mac_address: "F0:5E:CD:51:9B:66"
+#    mac_address: "2B:80:3C:5A:A1:11"
 
 ble_client_hid:
   - id: ble_client_hid_1
@@ -46,7 +48,7 @@ output:
     id: gpio_pwm_main
     frequency: 1000 Hz
   - platform: ledc
-    pin: TXD
+    pin: GPIO18
     id: gpio_pwm_turn
     frequency: 1000 Hz
 
