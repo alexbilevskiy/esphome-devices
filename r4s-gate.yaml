@@ -19,8 +19,10 @@ logger:
 api:
   password: ""
 ota:
-  safe_mode: false
+  platform: esphome
   password: ""
+safe_mode:
+  disabled: true
 
 preferences:
   flash_write_interval: 1min

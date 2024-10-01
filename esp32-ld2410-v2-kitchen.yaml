@@ -8,11 +8,15 @@ esp32:
     type: esp-idf
 
 logger:
+  baud_rate: 0
 
 api:
   password: ""
 ota:
+  platform: esphome
   password: ""
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid

@@ -13,7 +13,10 @@ logger:
 api:
   password: ""
 ota:
+  platform: esphome
   password: ""
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid
@@ -22,8 +25,9 @@ wifi:
   output_power: 20.5dbm
   power_save_mode: none
 
-dallas:
-  - pin: RX1
+one_wire:
+  - platform: gpio
+    pin: RX1
 
 switch:
   - platform: gpio
@@ -64,7 +68,7 @@ binary_sensor:
           - switch.turn_on: switch_01
 
 sensor:
-  - platform: dallas
+  - platform: dallas_temp
     address: 0x580000003a35c428
     name: "e_0x580000003a35c428"
   - platform: uptime

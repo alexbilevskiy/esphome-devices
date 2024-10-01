@@ -64,6 +64,18 @@ light:
     output: out_led_02
     restore_mode: ALWAYS_ON
 
+switch:
+  - platform: gpio
+    pin: GPIO18
+    inverted: true
+    name: "io18"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    inverted: true
+    pin: GPIO19
+    name: "io19"
+    restore_mode: ALWAYS_OFF
+
 output:
 # is used by ethernet
 #  - id: out_led_internal

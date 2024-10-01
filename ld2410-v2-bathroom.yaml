@@ -11,8 +11,10 @@ logger:
 api:
   password: ""
 ota:
+  platform: esphome
   password: ""
-  safe_mode: false
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid
@@ -27,8 +29,9 @@ uart:
   parity: NONE
   stop_bits: 1
 
-dallas:
-  - pin: GPIO5
+one_wire:
+  - platform: gpio
+    pin: GPIO5
 
 ld2410:
   uart_id: ld2410_uart
@@ -65,10 +68,10 @@ binary_sensor:
       name: out pin presence status
 
 sensor:
-  - platform: dallas
+  - platform: dallas_temp
     address: 0x820000003d6f0128
     name: "e_0x820000003d6f0128"
-  - platform: dallas
+  - platform: dallas_temp
     address: 0xb2f83c480b646128
     name: "c_0xb2f83c480b646128"
   - platform: ld2410

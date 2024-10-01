@@ -18,8 +18,10 @@ api:
         - rtttl.play:
             rtttl: !lambda 'return song_str;'
 ota:
+  platform: esphome
   password: ""
-  safe_mode: false
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid
