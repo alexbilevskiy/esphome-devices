@@ -16,6 +16,11 @@ ota:
 safe_mode:
   disabled: true
 
+web_server:
+  ota: false
+  local: true
+  version: 3
+
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
