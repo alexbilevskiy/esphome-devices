@@ -64,6 +64,9 @@ binary_sensor:
     ld2410_id: ld2410_1
     has_target:
       name: Presence
+      filters:
+        # workaround for cyclic reboots of ld2410 (probably it's dying)
+        - delayed_off: 10s
       on_press:
         then:
           - light.turn_on: indicator_light
