@@ -62,7 +62,6 @@ light:
     internal: true
     id: indicator_01
     output: indicator_output
-    restore_mode: RESTORE_DEFAULT_OFF
 
 output:
   - id: indicator_output
