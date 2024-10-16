@@ -39,6 +39,29 @@ tuya:
 #  [10:36:30][C][tuya:058]:   Datapoint 4: int value (value: 100)
 #  [10:36:30][C][tuya:074]:   Product: '{"p":"kxtcfbazhsvjqcfz","v":"1.0.0","m":2}'
 
+
+#select:
+#  - platform: "tuya"
+#    name: "preset int"
+#    enum_datapoint: 3
+#    optimistic: true
+#    options:
+#      "0": 20%
+#      1: 40%
+#      2: 60%
+#      3: 80%
+#      4: 100%
+#    on_value:
+#      - switch.turn_on:
+#          id: power
+#
+
+switch:
+  - platform: "tuya"
+    name: "power"
+    id: power
+    switch_datapoint: 1
+
 fan:
   - platform: "tuya"
     name: "fan"
@@ -46,56 +69,66 @@ fan:
     switch_datapoint: 1
     speed_datapoint: 4
     speed_count: 100
+    internal: true
+  - platform: template
+    name: "fan"
+    id: t_fan
+    speed_count: 100
+    restore_mode: RESTORE_DEFAULT_OFF
+    preset_modes:
+      - "off"
+      - "20%"
+      - "25%"
+      - "30%"
+      - "100%"
+    on_state:
+      - if:
+          condition:
+            - lambda: 'return (id(t_fan).speed == 0) || id(t_fan).state == false;'
+          then:
+            - fan.turn_off:
+                id: tuya_fan
+          else:
+            - lambda: |-
+                auto call = id(tuya_fan).turn_on();
+                call.set_speed(x->speed);
+                call.perform();
+    on_preset_set:
+      - if:
+          condition:
+            - lambda: 'return (id(t_fan).preset_mode == "off");'
+          then:
+            - fan.turn_off:
+                id: t_fan
+      - if:
+          condition:
+            - lambda: 'return (id(t_fan).preset_mode == "20%");'
+          then:
+            - fan.turn_on:
+                id: t_fan
+                speed: 20
+      - if:
+          condition:
+            - lambda: 'return (id(t_fan).preset_mode == "25%");'
+          then:
+            - fan.turn_on:
+                id: t_fan
+                speed: 25
+      - if:
+          condition:
+            - lambda: 'return (id(t_fan).preset_mode == "30%");'
+          then:
+            - fan.turn_on:
+                id: t_fan
+                speed: 30
+      - if:
+          condition:
+            - lambda: 'return (id(t_fan).preset_mode == "100%");'
+          then:
+            - fan.turn_on:
+                id: t_fan
+                speed: 100
 
-button:
-  - platform: template
-    name: "Preset 10%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 10
-  - platform: template
-    name: "Preset 20%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 20
-  - platform: template
-    name: "Preset 25%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 25
-  - platform: template
-    name: "Preset 30%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 30
-  - platform: template
-    name: "Preset 40%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 40
-  - platform: template
-    name: "Preset 50%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 50
-  - platform: template
-    name: "Preset 70%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 70
-  - platform: template
-    name: "Preset 100%"
-    on_press:
-      - fan.turn_on:
-          id: tuya_fan
-          speed: 100
 
 sensor:
   - platform: internal_temperature
