@@ -41,6 +41,7 @@ light:
     name: "Indicator"
     id: indicator_light
     output: indicator_output
+    internal: true
 
 output:
   - id: indicator_output

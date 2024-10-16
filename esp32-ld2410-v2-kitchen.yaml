@@ -43,6 +43,7 @@ light:
     id: indicator_light
     name: "Indicator"
     output: indicator_output
+    internal: true
   - platform: monochromatic
     icon: mdi:led-strip
     output: pwm_output
