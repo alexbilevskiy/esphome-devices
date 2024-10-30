@@ -24,6 +24,9 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
 
+preferences:
+  flash_write_interval: 15s
+
 
 uart:
   rx_pin: RX1
