@@ -1,6 +1,7 @@
 # custom fan controller based on yyac-3s
 esphome:
   name: fan-custom
+  friendly_name: fan-custom
 
 esp32:
   board: lolin_s2_mini
