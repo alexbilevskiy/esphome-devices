@@ -32,6 +32,7 @@ uart:
   baud_rate: 256000
   parity: NONE
   stop_bits: 1
+  rx_buffer_size: 512
 
 ld2410:
   uart_id: ld2410_uart
@@ -53,7 +54,9 @@ light:
 output:
   - id: indicator_output
     platform: gpio
-    pin: GPIO2
+    pin:
+      number: GPIO2
+      ignore_strapping_warning: true
     inverted: false
   - platform: ledc
     pin: GPIO27
@@ -67,28 +70,28 @@ binary_sensor:
       name: Presence
       filters:
         # workaround for cyclic reboots of ld2410 (probably it's dying)
-        - delayed_off: 10s
+        - delayed_off: 30s
       on_press:
         then:
           - light.turn_on: indicator_light
-          - if:
-              condition:
-                not:
-                  api.connected:
-              then:
-                - light.turn_on:
-                    id: pwm_01
-                    brightness: 50%
+#          - if:
+#              condition:
+#                not:
+#                  api.connected:
+#              then:
+#                - light.turn_on:
+#                    id: pwm_01
+#                    brightness: 50%
       on_release:
         then:
           - light.turn_off: indicator_light
-          - if:
-              condition:
-                not:
-                  api.connected:
-              then:
-                - light.turn_off:
-                    id: pwm_01
+#          - if:
+#              condition:
+#                not:
+#                  api.connected:
+#              then:
+#                - light.turn_off:
+#                    id: pwm_01
     has_moving_target:
       name: Moving Target
     has_still_target:
