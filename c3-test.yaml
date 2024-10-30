@@ -18,8 +18,10 @@ logger:
 api:
   password: ""
 ota:
-  safe_mode: false
+  platform: esphome
   password: ""
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid
@@ -32,6 +34,10 @@ button:
 sensor:
   - platform: uptime
     name: Uptime
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 2s
+
 
 light:
   - platform: binary
@@ -43,5 +49,7 @@ light:
 output:
   - id: indicator_output
     platform: gpio
-    pin: GPIO8
+    pin:
+      number: GPIO8
+      ignore_strapping_warning: true
     inverted: true
