@@ -23,15 +23,26 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
 
+web_server:
+  ota: false
+  local: true
+  version: 3
+  log: false
+
 switch:
   - platform: gpio
-    pin: GPIO5
-    name: "Charge"
+    pin: GPIO5 # relay 1
+    name: "main switch"
+    id: main_switch
     icon: "mdi:home-lightning-bolt"
-    restore_mode: ALWAYS_OFF
-    
+    restore_mode: ALWAYS_ON
+    inverted: true
+    on_turn_off:
+      - delay: 10s
+      - switch.turn_on: main_switch
+
   - platform: gpio
-    pin: GPIO4
+    pin: GPIO4 # relay 2
     id: force_discharge
     name: "Force discharge"
     icon: "mdi:home-lightning-bolt-outline"
