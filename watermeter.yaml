@@ -5,12 +5,12 @@ esphome:
     priority: 500
     then:
       - pulse_counter.set_total_pulses:
-          id: water_flow_rate
-          value: !lambda "return id(total_water);"
+          id: water_counter
+          value: !lambda "return id(global_water_counter) / 1 * 2280;"
   on_shutdown:
     then:
       - globals.set:
-          id: total_water
+          id: global_water_counter
           value: !lambda 'return id(water_total).state;'
 
 esp32:
@@ -40,18 +40,27 @@ wifi:
   fast_connect: true
 
 globals:
-  - id: total_water
+  - id: global_water_counter
     type: float
     restore_value: yes
-    initial_value: '0'
 
 button:
   - platform: template
     name: "Reset volume"
+    entity_category: "config"
     on_press:
       - pulse_counter.set_total_pulses:
-          id: water_flow_rate
+          id: water_counter
           value: 0
+      - globals.set:
+          id: global_water_counter
+          value: '0.0'
+
+#  - platform: template
+#    name: "log"
+#    entity_category: "config"
+#    on_press:
+#      - lambda: 'ESP_LOGD("XXX", "%0.2f: %0.2f", id(global_water_counter), id(water_total).state);'
   - platform: restart
     name: "Reboot"
 
@@ -66,7 +75,7 @@ sensor:
     icon: "mdi:water-sync"
     accuracy_decimals: 2
     device_class: volume_flow_rate
-    id: water_flow_rate
+    id: water_counter
     unit_of_measurement: "L/min"
     filters:
       - lambda: return (x * 1 / 2280);
@@ -80,10 +89,13 @@ sensor:
       filters:
       - lambda: return (x * 1 / 2280);
       on_value:
-        then:
-        - globals.set:
-            id: total_water
-            value: !lambda 'return id(water_total).state;'
+        - if:
+            condition:
+              - lambda: 'return id(water_total).state > 0;'
+            then:
+              - globals.set:
+                  id: global_water_counter
+                  value: !lambda 'return id(water_total).state;'
 
   - platform: uptime
     name: Uptime
