@@ -96,6 +96,7 @@ display:
           it.printf(0, 32, id(f10x20), "Power %s", id(power).state ? "ON" : "OFF");
           it.printf(0, 52, id(fh08), "%.0f runs", id(work_cycles).state);
       }
+      it.printf(128, 52, id(fh08), TextAlign::TOP_RIGHT, "Filter: %.2fL", id(water_usage).state);
       
 
 ready4sky:
@@ -236,6 +237,11 @@ sensor:
           }
           id(power).turn_on();
 
+  - platform: homeassistant
+    name: "Filtered water volume"
+    entity_id: sensor.watermeter_filtered_water_usage
+    id: water_usage
+
 
   - platform: uptime
     name: Uptime
@@ -265,7 +271,9 @@ light:
 output:
   - id: indicator_output
     platform: gpio
-    pin: GPIO8
+    pin:
+      number: GPIO8
+      ignore_strapping_warning: true
     inverted: true
 
 switch:
