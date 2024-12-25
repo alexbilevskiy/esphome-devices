@@ -67,6 +67,22 @@ binary_sensor:
       name: Still Target
     out_pin_presence_status:
       name: out pin presence status
+  - platform: gpio
+    pin:
+      number: D8
+      mode: INPUT_PULLUP
+      inverted: true
+    id: hall_01
+    name: "Door"
+    device_class: door
+#    on_state:
+#      - if:
+#          condition:
+#            - lambda: 'return (id(hall_01).state == true);'
+#          then:
+#            - light.turn_on: indicator_light
+#          else:
+#            - light.turn_off: indicator_light
 
 sensor:
   - platform: dallas_temp
