@@ -13,18 +13,16 @@ esp32:
       CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
 
 logger:
-  level: VERBOSE
-  logs:
-    canbus: VERBOSE
-    mcp2515: VERBOSE
-
+  baud_rate: 0
+  level: INFO
 
 api:
   password: ""
-  reboot_timeout: 0s
 ota:
+  platform: esphome
   password: ""
-  safe_mode: false
+safe_mode:
+  disabled: true
 
 wifi:
   ssid: !secret wifi_hotspot_ssid
@@ -56,22 +54,15 @@ uart:
       sequence:
         - lambda: UARTDebug::log_string(direction, bytes);
 
-spi:
-  id: McpSpi
-  clk_pin: GPIO4
-  mosi_pin: GPIO6
-  miso_pin: GPIO5
-
 binary_sensor:
 
+# MCP2551 or TJA1040 should work
 canbus:
-  - platform: mcp2515
-    id: my_mcp2515
-    spi_id: McpSpi
-    cs_pin: GPIO7
+  - platform: esp32_can
+    tx_pin: GPIO6
+    rx_pin: GPIO7
     can_id: 4
-    bit_rate: 33kbps
-    clock: 8mhz
+    bit_rate: 125kbps #must be 95kbps, how to set? https://esphome.io/components/canbus/esp32_can#esp32-can-bit-rate
     on_frame:
       - can_id: 0x175
         then:
@@ -112,7 +103,9 @@ light:
 output:
   - id: indicator_output
     platform: gpio
-    pin: GPIO8
+    pin:
+      number: GPIO8
+      ignore_strapping_warning: true
     inverted: true
 
 
@@ -137,6 +130,13 @@ sensor:
 switch:
 
 
+# I'm using FSC-BT1026E as bt chip
+
+# AT+TRACKINFO
+# AT+SPKVOL=15
+
+# AT+PROFILE=161
+
 button:
   - platform: restart
     name: "Reboot"
@@ -146,41 +146,28 @@ button:
     on_press:
       - uart.write:
           id: fs_uart
-          data: "AT+MN\r\n"
+          data: "AT+DEVSTAT\r\n"
   - platform: template
     name: "play"
     id: b_play
     on_press:
       - uart.write:
           id: fs_uart
-          data: "AT+MA\r\n"
+          data: "AT+PLAYPAUSE\r\n"
   - platform: template
     name: "next"
     id: b_next
     on_press:
       - uart.write:
           id: fs_uart
-          data: "AT+MD\r\n"
+          data: "AT+FORWARD\r\n"
   - platform: template
     name: "prev"
     id: b_prev
     on_press:
       - uart.write:
           id: fs_uart
-          data: "AT+ME\r\n"
-  - platform: template
-    name: "vol_up"
-    on_press:
-      - uart.write:
-          id: fs_uart
-          data: "AT+CK\r\n"
-  - platform: template
-    name: "vol_dn"
-    on_press:
-      - uart.write:
-          id: fs_uart
-          data: "AT+CL\r\n"
-
+          data: "AT+BACKWARD\r\n"
 
 text_sensor:
   - platform: wifi_info
