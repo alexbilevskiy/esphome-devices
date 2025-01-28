@@ -15,15 +15,10 @@ esphome:
       - lambda: |-
           run();
 
-#external_components:
-#  - source:
-#      type: local
-#      path: custom_components
-#    components: [ canbus ]
-#  - source:
-#      type: local
-#      path: custom_components
-#    components: [ esp32_can ]
+external_components:
+  - source: github://alexbilevskiy/esphome@canbus_new_speed
+    components: [ canbus, esp32_can ]
+    refresh: 0s
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -117,30 +112,29 @@ uart:
 
 binary_sensor:
 
-# MCP2551 or TJA1040 should work
-#canbus:
-#  - platform: esp32_can
-#    tx_pin: GPIO3
-#    rx_pin: GPIO4
-#    can_id: 4
-#    bit_rate: 95kbps #must be 95kbps, how to set? https://esphome.io/components/canbus/esp32_can#esp32-can-bit-rate
-#    on_frame:
-#      - can_id: 0x206
-#        then:
-#          - lambda: |-
-#              if(x.size() > 0) {
-#                switch(x[5]) {
-#                  case 0x81: id(b_play).press(); break;
-#                  case 0x91: id(b_next).press(); break;
-#                  case 0x92: id(b_prev).press(); break;
-#                }
-#              }
-#      - can_id: 0x201
-#        then:
-#          - lambda: |-
-#              if(x.size() > 0) {
-#                UARTDebug::log_hex(UART_DIRECTION_RX, x, x.size());
-#              }
+canbus:
+  - platform: esp32_can # MCP2551 or TJA1040 should work
+    tx_pin: GPIO3
+    rx_pin: GPIO4
+    can_id: 4
+    bit_rate: 95kbps #defined in custom_components
+    on_frame:
+      - can_id: 0x206
+        then:
+          - lambda: |-
+              if(x.size() > 0) {
+                switch(x[5]) {
+                  case 0x81: id(b_play).press(); break;
+                  case 0x91: id(b_next).press(); break;
+                  case 0x92: id(b_prev).press(); break;
+                }
+              }
+      - can_id: 0x201
+        then:
+          - lambda: |-
+              if(x.size() > 0) {
+                UARTDebug::log_hex(UART_DIRECTION_RX, x, x.size());
+              }
 
 
 light:
