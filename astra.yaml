@@ -4,11 +4,11 @@ esphome:
   platformio_options:
     board_build.flash_mode: dio
   includes:
-    - "custom_components/ehu32/esphome_utils.h"
-    - "custom_components/ehu32/EHU32.h"
-    - "custom_components/ehu32/CAN.h"
-    - "custom_components/ehu32/TextHandler.h"
-    - "custom_components/ehu32/wrapper.h"
+    - "custom_components/EHU32/src/esphome_utils.h"
+    - "custom_components/EHU32/src/EHU32.h"
+    - "custom_components/EHU32/src/CAN.h"
+    - "custom_components/EHU32/src/TextHandler.h"
+    - "custom_components/EHU32/src/wrapper.h"
   on_boot:
     priority: 500
     then:
