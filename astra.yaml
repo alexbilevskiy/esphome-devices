@@ -87,6 +87,12 @@ uart:
             if(!found) {
               return;
             }
+            const char *no_data = "+TRACKINFO=Not Provided";
+            found = strstr(raw_at, no_data);
+            if(found) {
+              return;
+            }
+            
             char *next = strtok(raw_at, "=");
             
             char *delim = "\xFF";
