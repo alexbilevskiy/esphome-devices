@@ -18,7 +18,7 @@ esphome:
 external_components:
   - source: github://alexbilevskiy/esphome@canbus_new_speed
     components: [ canbus, esp32_can ]
-    refresh: 0s
+    refresh: 1h
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -32,6 +32,7 @@ logger:
   baud_rate: 115200
   logs:
     wireguard: INFO
+    canbus: INFO
 
 api:
   password: ""
@@ -118,29 +119,33 @@ uart:
 
 binary_sensor:
 
-canbus:
-  - platform: esp32_can # MCP2551 or TJA1040 should work
-    tx_pin: GPIO3
-    rx_pin: GPIO4
-    can_id: 4
-    bit_rate: 95kbps #defined in custom_components
-    on_frame:
-      - can_id: 0x206
-        then:
-          - lambda: |-
-              if(x.size() > 0) {
-                switch(x[5]) {
-                  case 0x81: id(b_play).press(); break;
-                  case 0x91: id(b_next).press(); break;
-                  case 0x92: id(b_prev).press(); break;
-                }
-              }
-      - can_id: 0x201
-        then:
-          - lambda: |-
-              if(x.size() > 0) {
-                UARTDebug::log_hex(UART_DIRECTION_RX, x, x.size());
-              }
+##native esphome canbus works, but conflicts with EHU32 because they both listen can bus with twai_receive
+
+#canbus:
+#  - platform: esp32_can # MCP2551 or TJA1040 should work
+#    rx_queue_len: 40
+#    tx_queue_len: 5
+#    tx_pin: GPIO4
+#    rx_pin: GPIO3
+#    can_id: 4
+#    bit_rate: 95kbps #defined in custom_components
+#    on_frame:
+#      - can_id: 0x206
+#        then:
+#          - lambda: |-
+#              if(x.size() > 0) {
+#                switch(x[5]) {
+#                  case 0x81: id(b_play).press(); break;
+#                  case 0x91: id(b_next).press(); break;
+#                  case 0x92: id(b_prev).press(); break;
+#                }
+#              }
+#      - can_id: 0x201
+#        then:
+#          - lambda: |-
+#              if(x.size() > 0) {
+#                UARTDebug::log_hex(UART_DIRECTION_RX, x, x.size());
+#              }
 
 
 light:
