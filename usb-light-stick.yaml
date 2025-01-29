@@ -1,16 +1,13 @@
 esphome:
   name: usb-light-stick
   friendly_name: usb-light-stick
-  platformio_options:
-    board_build.flash_mode: dio
 
 esp32:
-  board: seeed_xiao_esp32c3
+  board: lolin_s2_mini
+  variant: esp32s2
   framework:
     type: esp-idf
     version: recommended
-    sdkconfig_options:
-      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
 
 logger:
   baud_rate: 0
@@ -70,46 +67,44 @@ light:
 output:
   - id: indicator_output
     platform: gpio
-    pin:
-      number: GPIO8
-      ignore_strapping_warning: true
-    inverted: true
+    pin: GPIO15
+    inverted: false
 
   - id: pwm_1
     channel: 2
     frequency: 1220 Hz
     platform: ledc
-    pin: GPIO3
+    pin: GPIO17
 
   - id: pwm_2
     channel: 4
     frequency: 1220 Hz
     platform: ledc
-    pin: GPIO1
+    pin: GPIO21
 
 # buttons 1 2
 matrix_keypad:
   rows:
     - pin:
-        number: GPIO7
+        number: GPIO14
         mode:
           output: true
         inverted: false
     # DUMMY; if not defined, binary_sensor below does not work
     - pin:
-        number: GPIO6
+        number: GPIO8
         mode:
           output: true
         inverted: false
   columns:
     - pin:
-        number: GPIO10
+        number: GPIO13
         allow_other_uses: true
         mode:
           input: true
           pullup: true
     - pin:
-        number: GPIO20
+        number: GPIO10
         allow_other_uses: true
         mode:
           input: true
@@ -152,7 +147,7 @@ binary_sensor:
     internal: true
     pin:
       inverted: true
-      number: GPIO10
+      number: GPIO13
       allow_other_uses: true
       mode:
         input: true
@@ -167,7 +162,7 @@ binary_sensor:
     internal: true
     pin:
       inverted: true
-      number: GPIO20
+      number: GPIO10
       allow_other_uses: true
       mode:
         input: true
