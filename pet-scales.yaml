@@ -18,6 +18,9 @@ esp32:
     sdkconfig_options:
       CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
 
+preferences:
+  flash_write_interval: 15s
+
 logger:
   baud_rate: 115200
 
