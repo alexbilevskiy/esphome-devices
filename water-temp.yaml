@@ -28,6 +28,12 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
 
+time:
+  - platform: homeassistant
+    id: esptime
+    timezone: Europe/Moscow
+
+
 i2c:
   sda: GPIO33
   scl: GPIO18
@@ -57,13 +63,18 @@ display:
     lambda: |-
       
       if(!isnan(id(presence).state) && id(presence).state == false) {
-        it.print(rand() % 100, rand() % 60, id(f4x6), "Who are you?");
-        return;              
+        //it.print(rand() % 100, rand() % 60, id(f4x6), "Who are you?");
+        return;
       }
       
       //it.print(0, 0, id(f10x20), "ON");
       
-      it.printf(0, 0, id(f10x20), "%.1f°C", id(temp).state);
+      esphome::ESPTime now = id(esptime).now();
+      it.strftime(0, 0, id(f10x20), "%H", now);
+      it.print(18, 0, id(f10x20), ":");
+      it.strftime(26, 0, id(f10x20), "%M", now);
+
+      it.printf(0, 16, id(f10x20), "%.1f°C", id(temp).state);
       return;
 
 button:
