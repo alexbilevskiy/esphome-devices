@@ -7,10 +7,9 @@ esphome:
 esp32:
   board: seeed_xiao_esp32c3
   framework:
-    type: esp-idf
+    type: arduino
     version: recommended
-    sdkconfig_options:
-      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+
 
 logger:
   baud_rate: 115200
@@ -31,7 +30,7 @@ wifi:
 i2c:
   sda: GPIO3
   scl: GPIO4
-  scan: true
+  scan: false
   frequency: 400kHz
 
 font:
@@ -49,7 +48,10 @@ display:
   - platform: ssd1306_i2c
     model: "SSD1306 128x64"
     address: 0x3C
+    update_interval: 1ms
     lambda: |-
+      it.printf(0, 0, id(f10x20), "%.1f", id(counter_total).state);
+      return;
       if (id(hall_01).state == true) {
         it.print(0, 0, id(f10x20), "ON");
       } else if (id(hall_01).state == false) {
@@ -68,21 +70,25 @@ sensor:
     name: "WiFi Signal Sensor"
     #update_interval: 2s
 
-binary_sensor:
-  - platform: gpio
+  - platform: pulse_meter
     pin:
       number: GPIO1
-      mode: INPUT_PULLUP
+      mode:
+        input: true
+        pullup: false
+        pulldown: false
       inverted: true
     id: hall_01
-    on_state:
-      - if:
-          condition:
-            - lambda: 'return (id(hall_01).state == true);'
-          then:
-            - light.turn_on: indicator_light
-          else:
-            - light.turn_off: indicator_light
+    name: "counter speed"
+    #update_interval: 1s
+    timeout: 10s
+    internal_filter_mode: PULSE
+    total:
+      name: "counter total"
+      id: counter_total
+    on_raw_value:
+      - light.toggle:
+          id: indicator_light
 
 light:
   - platform: binary
@@ -90,6 +96,7 @@ light:
     name: "Indicator"
     output: indicator_output
     restore_mode: ALWAYS_ON
+    internal: true
 
 output:
   - id: indicator_output
