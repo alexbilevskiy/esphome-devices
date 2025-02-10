@@ -7,6 +7,10 @@ esp32:
   framework:
     type: esp-idf
 
+substitutions:
+  resistor_value: "6.79kOhm"
+  min_resistance: "1000"
+  max_resistance: "500000"
 
 logger:
   baud_rate: 0
@@ -36,6 +40,68 @@ sensor:
     update_interval: 60s
   - platform: internal_temperature
     name: "Internal Temperature"
+
+  - platform: adc
+    id: source_sensor
+    pin: GPIO33
+    name: ADC
+    attenuation: 12db
+    internal: true
+
+    # It is important to have a low update interval so that
+    # the measurement has time to be done correctly during
+    # the activation of the voltage AND taking into account the median filter
+    update_interval: 250ms
+
+    filters:
+#      - multiply: 0.846153 # 3.9 (11db attenuation full-scale voltage) -> 3.3V
+      - median:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+
+  - platform: resistance
+    sensor: source_sensor
+    id: real_resistance_sensor
+    name: "real resistance"
+    configuration: DOWNSTREAM
+    resistor: "$resistor_value"
+    reference_voltage: 3.3V
+    internal: false
+    icon: "mdi:omega"
+    filters:
+      - lambda: 'return max((float)$min_resistance, x);'
+      - lambda: 'return min((float)$max_resistance, x);'
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: |-
+                return (
+                    id(real_resistance_sensor).state > $min_resistance
+                    &&
+                    id(real_resistance_sensor).state <= $max_resistance
+                );
+            then:
+              - sensor.template.publish:
+                  id: resistance_sensor
+                  state: !lambda "return id(real_resistance_sensor).state;"
+
+
+  - platform: template
+    id: resistance_sensor
+    name: "resistance"
+    icon: "mdi:omega"
+    unit_of_measurement: 'Ω'
+
+switch:
+  - platform: gpio
+    id: resistance_bias
+    name: "resistance bias"
+    icon: "mdi:power"
+    pin:
+      number: GPIO17
+      mode: OUTPUT
 
 light:
   - platform: binary
