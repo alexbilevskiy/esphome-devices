@@ -80,8 +80,8 @@ display:
 
       it.printf(0, 0, id(f10x20), "%.1f°C", id(temp).state);
       
-      it.printf(0, 16, id(fh08), "C: %.2fL, %.1fL/min", id(cold_water_current_run).state, id(cold_water_flow).state);
-      it.printf(0, 27, id(fh08), "H: %.2fL, %.1fL/min", id(hot_water_current_run).state, id(hot_water_flow).state);
+      it.printf(0, 16, id(fh08), "C: %.1fL, %.1fL/min", id(cold_water_current_run).state, id(cold_water_flow).state);
+      it.printf(0, 27, id(fh08), "H: %.1fL, %.1fL/min", id(hot_water_current_run).state, id(hot_water_flow).state);
       it.printf(0, 38, id(fh08), "Totals:");
       it.printf(0, 49, id(fh08), "C: %.1fL, H: %.1fL", id(cold_water_usage).state, id(hot_water_usage).state);
       
@@ -102,6 +102,7 @@ sensor:
     address: 0x980000003b828b28
     id: temp
     name: "temperature"
+    update_interval: 1s
 
   - platform: homeassistant
     name: "cold water usage"
