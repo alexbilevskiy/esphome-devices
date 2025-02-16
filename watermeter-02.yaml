@@ -10,6 +10,19 @@ esp32:
     type: esp-idf
     version: recommended
 
+globals:
+  - id: meter_01_total_prev
+    type: float
+    restore_value: no
+  - id: meter_01_reset
+    type: bool
+    restore_value: no
+  - id: meter_02_total_prev
+    type: float
+    restore_value: no
+  - id: meter_02_reset
+    type: bool
+    restore_value: no
 
 logger:
   baud_rate: 0
@@ -60,15 +73,31 @@ sensor:
     total:
       name: "cold water usage"
       device_class: water
-      id: counter_cold_total
+      id: meter_01_total
       icon: "mdi:water"
       accuracy_decimals: 2
       unit_of_measurement: "L"
       filters:
         - lambda: return (x * 1 / 400);
+      on_value:
+        - lambda: |-
+            if(id(meter_01_reset) == true) {
+              id(meter_01_current).publish_state(0.0);
+              id(meter_01_total_prev) = x;
+              id(meter_01_reset) = false;
+              return;
+            }
+            id(meter_01_current).publish_state(x - id(meter_01_total_prev));
+
     on_raw_value:
       - light.toggle:
           id: indicator_light
+    on_value:
+      - lambda: |- 
+          if (x == 0) {
+            id(meter_01_reset) = true;
+            return;
+          }
 
   - platform: pulse_meter
     pin:
@@ -91,16 +120,49 @@ sensor:
     total:
       name: "hot water usage"
       device_class: water
-      id: counter_hot_total
+      id: meter_02_total
       icon: "mdi:water"
       accuracy_decimals: 2
       unit_of_measurement: "L"
       filters:
         - lambda: return (x * 1 / 400);
-    on_raw_value:
+      on_value:
+        - lambda: |-
+            if(id(meter_02_reset) == true) {
+              id(meter_02_current).publish_state(0.0);
+              id(meter_02_total_prev) = x;
+              id(meter_02_reset) = false;
+              return;
+            }
+            id(meter_02_current).publish_state(x - id(meter_02_total_prev));
+      on_raw_value:
       - light.toggle:
           id: indicator_light
+    on_value:
+      - lambda: |-
+          if (x == 0) {
+            id(meter_02_reset) = true;
+            return;
+          }
 
+
+  - platform: template
+    id: meter_01_current
+    icon: "mdi:water"
+    accuracy_decimals: 2
+    unit_of_measurement: "L"
+    name: "cold water current run"
+    update_interval: 1s
+    lambda: return {};
+
+  - platform: template
+    id: meter_02_current
+    icon: "mdi:water"
+    accuracy_decimals: 2
+    unit_of_measurement: "L"
+    name: "hot water current run"
+    update_interval: 1s
+    lambda: return {};
 
 light:
   - platform: binary
