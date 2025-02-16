@@ -70,11 +70,19 @@ display:
       //it.print(0, 0, id(f10x20), "ON");
       
       esphome::ESPTime now = id(esptime).now();
-      it.strftime(0, 0, id(f10x20), "%H", now);
-      it.print(18, 0, id(f10x20), ":");
-      it.strftime(26, 0, id(f10x20), "%M", now);
+      it.strftime(80, 0, id(f10x20), "%H", now);
+      it.print(98, 0, id(f10x20), ":");
+      it.strftime(106, 0, id(f10x20), "%M", now);
 
-      it.printf(0, 16, id(f10x20), "%.1f°C", id(temp).state);
+      //it.strftime(0, 0, id(f10x20), "%H", now);
+      //it.print(18, 0, id(f10x20), ":");
+      //it.strftime(26, 0, id(f10x20), "%M", now);
+
+      it.printf(0, 0, id(f10x20), "%.1f°C", id(temp).state);
+      
+      it.printf(0, 16, id(fh08), "C: %.2fL, %.1fL/min", id(cold_water_usage).state, id(cold_water_flow).state);
+      it.printf(0, 26, id(fh08), "H: %.2fL, %.1fL/min", id(hot_water_usage).state, id(hot_water_flow).state);
+      
       return;
 
 button:
@@ -92,7 +100,27 @@ sensor:
     address: 0x980000003b828b28
     id: temp
     name: "temperature"
-    update_interval: 1s
+
+  - platform: homeassistant
+    name: "cold water usage"
+    entity_id: sensor.watermeter_02_cold_water_usage
+    id: cold_water_usage
+
+  - platform: homeassistant
+    name: "cold water flow"
+    entity_id: sensor.watermeter_02_cold_water_flow
+    id: cold_water_flow
+
+  - platform: homeassistant
+    name: "hot water usage"
+    entity_id: sensor.watermeter_02_hot_water_usage
+    id: hot_water_usage
+
+  - platform: homeassistant
+    name: "hot water flow"
+    entity_id: sensor.watermeter_02_hot_water_flow
+    id: hot_water_flow
+
 
 binary_sensor:
   - platform: homeassistant
