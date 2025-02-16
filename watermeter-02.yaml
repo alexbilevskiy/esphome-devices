@@ -3,6 +3,23 @@ esphome:
   friendly_name: watermeter-02
   platformio_options:
     board_build.flash_mode: dio
+  on_boot:
+    priority: 500
+    then:
+      - pulse_meter.set_total_pulses:
+          id: meter_01
+          value: !lambda "return id(meter_01_store) / 1 * 400;"
+      - pulse_meter.set_total_pulses:
+          id: meter_02
+          value: !lambda "return id(meter_02_store) / 1 * 400;"
+  on_shutdown:
+    then:
+      - globals.set:
+          id: meter_01_store
+          value: !lambda 'return id(meter_01_total).state;'
+      - globals.set:
+          id: meter_02_store
+          value: !lambda 'return id(meter_02_total).state;'
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -10,13 +27,23 @@ esp32:
     type: esp-idf
     version: recommended
 
+preferences:
+  flash_write_interval: 15s
+
 globals:
+  - id: meter_01_store
+    type: float
+    restore_value: true
   - id: meter_01_total_prev
     type: float
     restore_value: no
   - id: meter_01_reset
     type: bool
     restore_value: no
+
+  - id: meter_02_store
+    type: float
+    restore_value: true
   - id: meter_02_total_prev
     type: float
     restore_value: no
@@ -45,6 +72,23 @@ wifi:
 button:
   - platform: restart
     name: "Reboot"
+
+  - platform: template
+    name: "Reset volume"
+    entity_category: "config"
+    on_press:
+      - pulse_meter.set_total_pulses:
+          id: meter_01
+          value: 0.0
+      - globals.set:
+          id: meter_01_store
+          value: '0.0'
+      - pulse_meter.set_total_pulses:
+          id: meter_02
+          value: 0.0
+      - globals.set:
+          id: meter_02_store
+          value: '0.0'
 sensor:
   - platform: uptime
     name: Uptime
@@ -81,6 +125,9 @@ sensor:
         - lambda: return (x * 1 / 400);
       on_value:
         - lambda: |-
+            if(x > 0) {
+              id(meter_01_store) = x;
+            }
             if(id(meter_01_reset) == true) {
               id(meter_01_current).publish_state(0.0);
               id(meter_01_total_prev) = x;
@@ -128,6 +175,9 @@ sensor:
         - lambda: return (x * 1 / 400);
       on_value:
         - lambda: |-
+            if(x > 0) {
+              id(meter_02_store) = x;
+            }
             if(id(meter_02_reset) == true) {
               id(meter_02_current).publish_state(0.0);
               id(meter_02_total_prev) = x;
