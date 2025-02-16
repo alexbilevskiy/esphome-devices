@@ -12,6 +12,11 @@ esp32:
     type: arduino
     version: recommended
 
+udp:
+  update_interval: 1s
+  providers:
+    - name: watermeter-02
+
 logger:
   baud_rate: 115200
 
@@ -104,35 +109,47 @@ sensor:
     name: "temperature"
     update_interval: 1s
 
-  - platform: homeassistant
+  - platform: udp
+    provider: watermeter-02
     name: "cold water usage"
-    entity_id: sensor.watermeter_02_cold_water_usage
+    remote_id: cold_water_usage
     id: cold_water_usage
+    internal: true
 
-  - platform: homeassistant
+  - platform: udp
+    provider: watermeter-02
     name: "cold water flow"
-    entity_id: sensor.watermeter_02_cold_water_flow
+    remote_id: cold_water_flow
     id: cold_water_flow
+    internal: true
 
-  - platform: homeassistant
+  - platform: udp
+    provider: watermeter-02
     name: "cold water current run"
-    entity_id: sensor.watermeter_02_cold_water_current_run
+    remote_id: cold_water_current_run
     id: cold_water_current_run
+    internal: true
 
-  - platform: homeassistant
+  - platform: udp
+    provider: watermeter-02
     name: "hot water usage"
-    entity_id: sensor.watermeter_02_hot_water_usage
+    remote_id: hot_water_usage
     id: hot_water_usage
+    internal: true
 
-  - platform: homeassistant
+  - platform: udp
+    provider: watermeter-02
     name: "hot water flow"
-    entity_id: sensor.watermeter_02_hot_water_flow
+    remote_id: hot_water_flow
     id: hot_water_flow
+    internal: true
 
-  - platform: homeassistant
+  - platform: udp
+    provider: watermeter-02
     name: "hot water current run"
-    entity_id: sensor.watermeter_02_hot_water_current_run
+    remote_id: hot_water_current_run
     id: hot_water_current_run
+    internal: true
 
 
 binary_sensor:

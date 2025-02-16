@@ -30,6 +30,22 @@ esp32:
 preferences:
   flash_write_interval: 15s
 
+udp:
+  update_interval: 1s
+  sensors:
+    - id: meter_01
+      broadcast_id: cold_water_flow
+    - id: meter_01_total
+      broadcast_id: cold_water_usage
+    - id: meter_01_current
+      broadcast_id: cold_water_current_run
+    - id: meter_02
+      broadcast_id: hot_water_flow
+    - id: meter_02_total
+      broadcast_id: hot_water_usage
+    - id: meter_02_current
+      broadcast_id: hot_water_current_run
+
 globals:
   - id: meter_01_store
     type: float
