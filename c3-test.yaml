@@ -51,15 +51,7 @@ display:
     address: 0x3C
     update_interval: 1ms
     lambda: |-
-      it.printf(0, 0, id(f10x20), "%.1f", id(counter_total).state);
-      return;
-      if (id(hall_01).state == true) {
-        it.print(0, 0, id(f10x20), "ON");
-      } else if (id(hall_01).state == false) {
-        it.print(0, 0, id(f10x20), "OFF");
-      } else {
-        it.print(0, 0, id(f10x20), "UNK");
-      }
+      it.printf(0, 0, id(f10x20), "%.1f", id(ntc_sensor).state);
 
 button:
   - platform: restart
@@ -71,25 +63,41 @@ sensor:
     name: "WiFi Signal Sensor"
     #update_interval: 2s
 
-  - platform: pulse_meter
+  - platform: adc
+    id: source_sensor
     pin:
       number: GPIO1
       mode:
         input: true
         pullup: false
         pulldown: false
-      inverted: true
-    id: hall_01
-    name: "counter speed"
-    #update_interval: 1s
-    timeout: 10s
-    internal_filter_mode: PULSE
-    total:
-      name: "counter total"
-      id: counter_total
-    on_raw_value:
-      - light.toggle:
-          id: indicator_light
+    update_interval: 1s
+    name: ADC Sensor
+    attenuation: auto
+
+  - platform: resistance
+    sensor: source_sensor
+    configuration: UPSTREAM
+    resistor: 4.708kOhm
+    name: Resistance Sensor
+    id: resistance_sensor
+
+  - platform: ntc
+    sensor: resistance_sensor
+    id: ntc_sensor
+    name: NTC
+    calibration:
+      b_constant: 3950
+      reference_temperature: 25°C
+      reference_resistance: 10kOhm
+
+switch:
+  platform: gpio
+  pin: GPIO0
+  restore_mode: ALWAYS_ON
+  name: ntc power
+  inverted: false
+
 
 light:
   - platform: binary
