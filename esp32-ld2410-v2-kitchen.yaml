@@ -25,6 +25,13 @@ wifi:
 
 bluetooth_proxy:
 
+
+udp:
+  update_interval: 1s
+  binary_sensors:
+    - id: presence
+      broadcast_id: presence
+
 uart:
   id: ld2410_uart
   tx_pin: GPIO17
@@ -68,6 +75,7 @@ binary_sensor:
     ld2410_id: ld2410_1
     has_target:
       name: Presence
+      id: presence
       filters:
         # workaround for cyclic reboots of ld2410 (probably it's dying)
         - delayed_off: 30s

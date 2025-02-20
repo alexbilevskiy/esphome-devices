@@ -31,6 +31,12 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
+  output_power: 15dbm
+
+udp:
+  update_interval: 1s
+  providers:
+    - name: esp32-ld2410-v2
 
 time:
   - platform: homeassistant
@@ -247,10 +253,12 @@ sensor:
     name: Uptime
 
 binary_sensor:
-  - platform: homeassistant
+  - platform: udp
+    provider: esp32-ld2410-v2
     name: "kitchen presence"
-    entity_id: binary_sensor.esp32_ld2410_v2_presence
+    remote_id: presence
     id: kitchen_presence
+    internal: true
   - platform: template
     name: "kettle availability"
     id: availability

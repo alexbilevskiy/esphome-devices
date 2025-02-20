@@ -21,6 +21,12 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
 
+udp:
+  update_interval: 1s
+  binary_sensors:
+    - id: presence
+      broadcast_id: presence
+
 uart:
   id: ld2410_uart
   tx_pin: TX
@@ -55,6 +61,7 @@ binary_sensor:
     ld2410_id: ld2410_1
     has_target:
       name: Presence
+      id: presence
       on_press:
         then:
           - light.turn_on: indicator_light

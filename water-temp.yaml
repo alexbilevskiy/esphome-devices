@@ -16,6 +16,7 @@ udp:
   update_interval: 1s
   providers:
     - name: watermeter-02
+    - name: ld2410-v2-bathroom
 
 logger:
   baud_rate: 115200
@@ -153,10 +154,12 @@ sensor:
 
 
 binary_sensor:
-  - platform: homeassistant
+  - platform: udp
+    provider: ld2410-v2-bathroom
+    remote_id: presence
     name: "bathroom presence"
-    entity_id: binary_sensor.ld2410_v2_bathroom_presence
     id: presence
+    internal: true
 
 light:
   - platform: binary
