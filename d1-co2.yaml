@@ -81,6 +81,21 @@ sensor:
     update_interval: 20s
     uart_id: s8_uart
 
+  - platform: scd30
+    co2:
+      name: "CO2 SCD30"
+      accuracy_decimals: 1
+    temperature:
+      name: "Temperature SCD30"
+      accuracy_decimals: 2
+    humidity:
+      name: "Humidity SCD30"
+      accuracy_decimals: 1
+    temperature_offset: 0 °C
+    address: 0x61
+    update_interval: 5s
+    automatic_self_calibration: false
+
   - platform: bh1750
     name: "Illuminance"
     address: 0x23
