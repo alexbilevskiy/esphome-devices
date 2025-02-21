@@ -81,6 +81,21 @@ sensor:
     update_interval: 20s
     uart_id: s8_uart
 
+  - platform: scd30
+    co2:
+      name: "CO2 SCD30"
+      accuracy_decimals: 1
+    temperature:
+      name: "Temperature SCD30"
+      accuracy_decimals: 2
+    humidity:
+      name: "Humidity SCD30"
+      accuracy_decimals: 1
+    temperature_offset: 0 °C
+    address: 0x61
+    update_interval: 5s
+    automatic_self_calibration: false
+
   - platform: bh1750
     name: "Illuminance"
     address: 0x23
@@ -120,3 +135,22 @@ button:
     name: "CO₂ S8 background calibration"
     on_press:
       - senseair.background_calibration: co2_s8
+
+  - platform: template
+    name: "SCD30 Force manual calibration"
+    entity_category: "config"
+    on_press:
+      then:
+        - scd30.force_recalibration_with_reference:
+            value: !lambda 'return id(co2_cal).state;'
+
+number:
+  - platform: template
+    name: "CO2 calibration value"
+    optimistic: true
+    min_value: 350
+    max_value: 4500
+    step: 1
+    id: co2_cal
+    icon: "mdi:molecule-co2"
+    entity_category: "config"
