@@ -139,6 +139,10 @@ sensor:
       unit_of_measurement: "L"
       filters:
         - lambda: return (x * 1 / 400);
+        - sliding_window_moving_average:
+            window_size: 25
+            send_every: 1
+            send_first_at: 1
       on_value:
         - lambda: |-
             if(x > 0) {
@@ -189,6 +193,10 @@ sensor:
       unit_of_measurement: "L"
       filters:
         - lambda: return (x * 1 / 400);
+        - sliding_window_moving_average:
+            window_size: 25
+            send_every: 1
+            send_first_at: 1
       on_value:
         - lambda: |-
             if(x > 0) {
