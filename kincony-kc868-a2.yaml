@@ -1,0 +1,76 @@
+esphome:
+  name: kincony-kc868-a2
+  friendly_name: KinCony KC868-A2
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+api:
+  password: ""
+ota:
+  platform: esphome
+  password: ""
+safe_mode:
+  disabled: true
+
+logger:
+  baud_rate: 0
+#wifi:
+#  ssid: !secret wifi_ssid
+#  password: !secret wifi_password
+#  fast_connect: true
+
+#i2c 16,4
+# GPIO-1 and GPIO-2 are GPIO33 , GPIO14
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO17_OUT
+  phy_addr: 0
+
+switch:
+  - platform: gpio
+    id: sw_ch_01
+    name: "switch1"
+    pin:
+      number: GPIO15
+      ignore_strapping_warning: true
+    inverted: False
+    on_turn_on:
+      - delay: 60s
+      - switch.turn_off: sw_ch_01
+    interlock: [sw_ch_02]
+
+  - platform: gpio
+    id: sw_ch_02
+    name: "switch2"
+    pin:
+      number: GPIO2
+      ignore_strapping_warning: true
+    inverted: False
+    on_turn_on:
+      - delay: 60s
+      - switch.turn_off: sw_ch_02
+    interlock: [sw_ch_01]
+
+binary_sensor:
+  - platform: gpio
+    name: "a2-input1"
+    pin:
+      number: GPIO36
+      inverted: true
+  - platform: gpio
+    name: "a2-input2"
+    pin:
+      number: GPIO39
+      inverted: true
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"
+  - platform: uptime
+    name: Uptime
