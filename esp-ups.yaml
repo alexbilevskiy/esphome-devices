@@ -3,7 +3,13 @@ esphome:
   friendly_name: "ESP UPS"
   includes:
     - "esphome-custom/ninebattery/ninebattery.h"
-    
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/robertklep/esphome-custom-component
+    components: [ custom, custom_component ]
+
 esp8266:
   board: esp12e
 
@@ -28,6 +34,12 @@ web_server:
   local: true
   version: 3
   log: false
+
+i2c:
+  sda: GPIO13
+  scl: GPIO12
+  scan: false
+  id: bus_a
 
 switch:
   - platform: gpio
@@ -210,6 +222,22 @@ sensor:
       accuracy_decimals: 0
       filters:
         - throttle: 15s
+  - platform: ina2xx_i2c
+    id: ina228
+    model: INA228
+    address: 0x40
+    shunt_resistance: 0.002 ohm
+    max_current: 10 A
+    adc_range: 0
+    update_interval: 15s
+
+    current: "INA228 Current"
+    bus_voltage: "INA228 Bus Voltage"
+    charge: "INA228 Charge"
+    power: "INA228 Power"
+    shunt_voltage: "INA228 Shunt Voltage"
+    temperature: "INA228 Temperature"
+    energy: "INA228 Energy"
   - platform: uptime
     name: Uptime
 
