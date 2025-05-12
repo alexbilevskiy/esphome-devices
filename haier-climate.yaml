@@ -32,7 +32,7 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
-#  output_power: 15dbm
+  #output_power: 15dbm
 
 climate:
   - platform: haier
@@ -48,7 +48,7 @@ climate:
       temperature_step: 1 °C
     supported_modes:
       - 'OFF'
-      - HEAT_COOL
+      #- HEAT_COOL
       - COOL
       - HEAT
       - DRY
@@ -56,8 +56,9 @@ climate:
     supported_swing_modes:
       - 'OFF'
       - VERTICAL
+      - BOTH
     supported_presets:
-      - AWAY
+      #- AWAY
       - BOOST
       - COMFORT
     on_status_message:
