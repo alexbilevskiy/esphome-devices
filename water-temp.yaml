@@ -48,7 +48,11 @@ i2c:
 
 one_wire:
   - platform: gpio
-    pin: GPIO17
+    pin:
+      number: GPIO17
+      mode:
+        input: true
+        pullup: true
 
 font:
   - file: "fonts/4x6.bdf"

@@ -37,7 +37,11 @@ uart:
 
 one_wire:
   - platform: gpio
-    pin: GPIO5
+    pin:
+      number: GPIO5
+      mode:
+        input: true
+        pullup: true
 
 ld2410:
   uart_id: ld2410_uart
