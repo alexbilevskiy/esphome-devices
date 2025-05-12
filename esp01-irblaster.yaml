@@ -32,6 +32,10 @@ remote_transmitter:
   carrier_duty_percent: 50%
   
 button:
+  - platform: restart
+    name: "Reboot"
+  - platform: shutdown
+    name: "Shutdown"
   - platform: template
     name: "speaker power"
     icon: mdi:power

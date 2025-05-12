@@ -256,6 +256,8 @@ number:
       
       
 button:
+  - platform: restart
+    name: "Reboot"
   - platform: ld2410
     ld2410_id: ld2410_1
     factory_reset:
