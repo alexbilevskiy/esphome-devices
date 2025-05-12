@@ -1,0 +1,106 @@
+esphome:
+  name: espbattery
+  friendly_name: espbattery
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  board: seeed_xiao_esp32c3
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+      CONFIG_BT_CTRL_MODEM_SLEEP: y # low power mode
+
+logger:
+  baud_rate: 115200
+
+api:
+  password: ""
+ota:
+  platform: esphome
+  password: ""
+safe_mode:
+  disabled: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  power_save_mode: none
+  output_power: 20.5dBm
+  reboot_timeout: 0s
+
+i2c:
+  sda: GPIO3
+  scl: GPIO4
+  scan: true
+  frequency: 400kHz
+
+font:
+  - file: "fonts/4x6.bdf"
+    id: f4x6
+    size: 6
+  - file: "fonts/5x8.bdf"
+    id: f5x8
+  - file: "fonts/10x20.bdf"
+    id: f10x20
+  - file: "fonts/helvR08.bdf"
+    id: fh08
+
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 100ms
+    lambda: |-
+      //it.print(0, 0, id(f4x6), "Hello World!");
+      //it.print(0, 14, id(f5x8), "Hello World!");
+      //it.print(0, 34, id(f10x20), "Hello World!");
+      
+      it.printf(0, 0, id(f10x20), "%.2f A %.2f V", id(ina226_current).state, id(ina226_bus_voltage).state);
+      it.printf(0, 14, id(f10x20), "%.3f W", id(ina226_power).state);
+      //it.printf(0, 40, id(f5x8), "%.0f °C", id(ina226_temperature).state);
+
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+    restore_mode: ALWAYS_ON
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    inverted: true
+
+
+sensor:
+  - platform: ina226
+    address: 0x40
+    shunt_resistance: 0.002 ohm
+    max_current: 10 A
+    update_interval: 5s
+
+    current:
+      name: "INA226 Current"
+      id: "ina226_current"
+    bus_voltage:
+      name: "INA226 Bus Voltage"
+      id: "ina226_bus_voltage"
+    power:
+      name: "INA226 Power"
+      id: "ina226_power"
+    shunt_voltage:
+      name: "INA226 Shunt Voltage"
+      id: "ina226_shunt_voltage"
+  - platform: uptime
+    name: Uptime
+
+
+binary_sensor:
