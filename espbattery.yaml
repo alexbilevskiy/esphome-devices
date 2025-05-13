@@ -18,14 +18,14 @@ esp32:
       CONFIG_BT_CTRL_MODEM_SLEEP: y # low power mode
 
 preferences:
-  flash_write_interval: 60s
+  flash_write_interval: 180s
 
 globals:
   - id: current_capacity
     type: float
     restore_value: true
     initial_value: "0.0"
-  - id: max_capacity
+  - id: actual_capacity
     type: float
     restore_value: true
     initial_value: "60.0"
@@ -82,10 +82,11 @@ display:
       if(id(display_power).state == false) {
           return;              
       }      
-      it.printf(0, 0, id(f10x20), "%.3f W", id(ina226_power).state);
-      it.printf(0, 15, id(f10x20), "%.2f A", id(ina226_current).state);
-      it.printf(0, 30, id(f10x20), "%.2f V", id(ina226_bus_voltage).state);
-      it.printf(0, 45, id(f10x20), "%.4f Ah", id(current_capacity));
+      it.printf(128, 0, id(f10x20), TextAlign::TOP_RIGHT, "%.2fW", id(ina226_power).state);
+      it.printf(128, 15, id(f10x20), TextAlign::TOP_RIGHT, "%.2fA", id(ina226_current).state);
+      it.printf(128, 30, id(f10x20), TextAlign::TOP_RIGHT, "%.2fV", id(ina226_bus_voltage).state);
+      it.printf(128, 45, id(f10x20), TextAlign::TOP_RIGHT, "%.1fAh", id(current_capacity));
+      it.printf(0, 45, id(f10x20), TextAlign::TOP_LEFT, "%.1f%%", id(capacity).state);
 
 light:
   - platform: binary
@@ -111,28 +112,44 @@ sensor:
 
     current:
       name: "INA226 Current"
-      id: "ina226_current"
+      id: ina226_current
       on_value:
         - lambda: |-
             id(current_capacity) -= x * (5.0 / 3600.0);  // 5s → Ah
     bus_voltage:
       name: "INA226 Bus Voltage"
-      id: "ina226_bus_voltage"
+      id: ina226_bus_voltage
     power:
       name: "INA226 Power"
-      id: "ina226_power"
-    shunt_voltage:
-      name: "INA226 Shunt Voltage"
-      id: "ina226_shunt_voltage"
+      id: ina226_power
 
   - platform: template
     name: "Current capacity"
     device_class: "energy"
     unit_of_measurement: "Ah"
     accuracy_decimals: 5
-    update_interval: 5s
+    update_interval: 60s
     lambda: |-
       return id(current_capacity);
+
+  - platform: template
+    name: "Actual capacity"
+    device_class: "energy"
+    unit_of_measurement: "Ah"
+    accuracy_decimals: 5
+    update_interval: 120s
+    lambda: |-
+      return id(actual_capacity);
+
+  - platform: template
+    name: "Capacity"
+    id: capacity
+    device_class: "battery"
+    unit_of_measurement: "%"
+    accuracy_decimals: 2
+    update_interval: 60s
+    lambda: |-
+      return id(current_capacity) / id(actual_capacity) * 100;
 
   - platform: uptime
     name: Uptime
@@ -161,8 +178,24 @@ number:
     max_value: 100
     mode: box
     step: 0.0001
-    restore_value: true
+    restore_value: false
     set_action:
       then:
         - lambda: |-
             id(current_capacity) = x;
+
+  - platform: template
+    name: "Set actual capacity"
+    id: actual_capacity_input
+    device_class: "energy"
+    unit_of_measurement: "Ah"
+    entity_category: "config"
+    min_value: 0
+    max_value: 100
+    mode: box
+    step: 0.0001
+    restore_value: false
+    set_action:
+      then:
+        - lambda: |-
+            id(actual_capacity) = x;
