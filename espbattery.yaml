@@ -111,17 +111,54 @@ sensor:
     update_interval: 5s
 
     current:
-      name: "INA226 Current"
+      name: "INA226 Current (int)"
       id: ina226_current
+      internal: true
       on_value:
         - lambda: |-
             id(current_capacity) -= x * (5.0 / 3600.0);  // 5s → Ah
     bus_voltage:
-      name: "INA226 Bus Voltage"
+      name: "INA226 Bus Voltage (int)"
       id: ina226_bus_voltage
+      internal: true
     power:
-      name: "INA226 Power"
+      name: "INA226 Power (int)"
       id: ina226_power
+      internal: true
+
+  - platform: template
+    name: "INA226 Current"
+    device_class: "current"
+    unit_of_measurement: "A"
+    accuracy_decimals: 2
+    update_interval: 5s
+    lambda: !lambda 'return id(ina226_current).state;'
+    filters:
+      - sliding_window_moving_average:
+          window_size: 12
+          send_every: 12
+  - platform: template
+    name: "INA226 Bus Voltage"
+    device_class: "voltage"
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    update_interval: 5s
+    lambda: !lambda 'return id(ina226_bus_voltage).state;'
+    filters:
+      - sliding_window_moving_average:
+          window_size: 12
+          send_every: 12
+  - platform: template
+    name: "INA226 Power"
+    device_class: "Power"
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    update_interval: 5s
+    lambda: !lambda 'return id(ina226_power).state;'
+    filters:
+      - sliding_window_moving_average:
+          window_size: 12
+          send_every: 12
 
   - platform: template
     name: "Current capacity"
