@@ -4,7 +4,13 @@ esphome:
   includes:
     # https://github.com/LeoDJ/ESPHome_Nodes/tree/main/CM1106_CO2_Sensor
     - "cm1106.h"
-    
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/robertklep/esphome-custom-component
+    components: [ custom, custom_component ]
+
 esp8266:
   board: d1_mini
 
@@ -78,7 +84,7 @@ sensor:
     co2:
       name: "CO₂ S8"
     id: co2_s8
-    update_interval: 20s
+    update_interval: 60s
     uart_id: s8_uart
 
   - platform: scd30
@@ -93,7 +99,7 @@ sensor:
       accuracy_decimals: 1
     temperature_offset: 0 °C
     address: 0x61
-    update_interval: 5s
+    update_interval: 60s
     automatic_self_calibration: false
 
   - platform: bh1750

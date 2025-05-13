@@ -129,6 +129,7 @@ sensor:
   - platform: template
     name: "INA226 Current"
     device_class: "current"
+    state_class: "measurement"
     unit_of_measurement: "A"
     accuracy_decimals: 2
     update_interval: 5s
@@ -140,6 +141,7 @@ sensor:
   - platform: template
     name: "INA226 Bus Voltage"
     device_class: "voltage"
+    state_class: "measurement"
     unit_of_measurement: "V"
     accuracy_decimals: 2
     update_interval: 5s
@@ -151,6 +153,7 @@ sensor:
   - platform: template
     name: "INA226 Power"
     device_class: "Power"
+    state_class: "measurement"
     unit_of_measurement: "W"
     accuracy_decimals: 2
     update_interval: 5s
@@ -163,6 +166,7 @@ sensor:
   - platform: template
     name: "Current capacity"
     device_class: "energy"
+    state_class: "measurement"
     unit_of_measurement: "Ah"
     accuracy_decimals: 5
     update_interval: 60s
@@ -172,6 +176,7 @@ sensor:
   - platform: template
     name: "Actual capacity"
     device_class: "energy"
+    state_class: "measurement"
     unit_of_measurement: "Ah"
     accuracy_decimals: 5
     update_interval: 120s
@@ -182,6 +187,7 @@ sensor:
     name: "Capacity"
     id: capacity
     device_class: "battery"
+    state_class: "measurement"
     unit_of_measurement: "%"
     accuracy_decimals: 2
     update_interval: 60s

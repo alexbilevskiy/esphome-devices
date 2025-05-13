@@ -106,13 +106,13 @@ sensor:
     name: Uptime
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
-    #update_interval: 2s
 
   - platform: dallas_temp
     address: 0x980000003b828b28
     id: temp
     name: "temperature"
     update_interval: 1s
+    internal: true
 
   - platform: udp
     provider: watermeter-02

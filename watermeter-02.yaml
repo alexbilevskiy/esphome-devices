@@ -122,6 +122,7 @@ sensor:
       inverted: true
     id: meter_01
     name: "cold water flow"
+    internal: true
     device_class: volume_flow_rate
     #update_interval: 1s
     timeout: 2s
@@ -176,6 +177,7 @@ sensor:
       inverted: true
     id: meter_02
     name: "hot water flow"
+    internal: true
     device_class: volume_flow_rate
     #update_interval: 1s
     timeout: 2s
