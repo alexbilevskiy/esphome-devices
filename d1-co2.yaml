@@ -68,7 +68,7 @@ output:
 sensor:
   - platform: custom
     lambda: |-
-      auto cm1106Sensor = new CM1106Sensor(id(cm1106_uart), 10000);
+      auto cm1106Sensor = new CM1106Sensor(id(cm1106_uart), 60000);
       App.register_component(cm1106Sensor);
       return {cm1106Sensor};
     sensors:
@@ -76,6 +76,7 @@ sensor:
       accuracy_decimals: 0
       unit_of_measurement: "ppm"
       device_class: "carbon_dioxide"
+      state_class: "measurement"
       icon: "mdi:molecule-co2"
       filters:
         - throttle: 15s
@@ -110,7 +111,7 @@ sensor:
   - platform: pm1006
     pm_2_5:
       name: "PM 2.5µm"
-    update_interval: 20s
+    update_interval: 60s
     uart_id: pm_2_5_uart
 
   - platform: uptime

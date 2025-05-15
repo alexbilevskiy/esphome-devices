@@ -165,16 +165,21 @@ binary_sensor:
     id: presence
     internal: true
 
-light:
-  - platform: binary
-    id: indicator_light
-    name: "Indicator"
-    output: indicator_output
-    restore_mode: ALWAYS_OFF
-    internal: true
-
-output:
-  - id: indicator_output
-    platform: gpio
-    pin: GPIO15
+status_led:
+  pin:
+    number: GPIO15
     inverted: false
+
+#light:
+#  - platform: binary
+#    id: indicator_light
+#    name: "Indicator"
+#    output: indicator_output
+#    restore_mode: ALWAYS_OFF
+#    internal: true
+#
+#output:
+#  - id: indicator_output
+#    platform: gpio
+#    pin: GPIO15
+#    inverted: false

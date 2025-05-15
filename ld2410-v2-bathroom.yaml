@@ -99,6 +99,11 @@ sensor:
   - platform: dallas_temp
     address: 0x820000003d6f0128
     name: "e_0x820000003d6f0128"
+    filters:
+      - clamp:
+          min_value: 0
+          max_value: 100
+          ignore_out_of_range: true
   - platform: dallas_temp
     address: 0xb2f83c480b646128
     name: "c_0xb2f83c480b646128"
