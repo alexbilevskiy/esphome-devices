@@ -76,6 +76,14 @@ output:
     frequency: 1000 Hz
     id: pwm_output_red
 
+#  - platform: gpio
+#    pin: GPIO2
+#    id: binary_output
+#  - platform: gpio
+#    pin: GPIO0
+#    id: binary_output_red
+
+
 light:
   - platform: monochromatic
     icon: mdi:light-recessed
@@ -85,3 +93,12 @@ light:
     icon: mdi:light-recessed
     output: pwm_output_red
     name: "Red light"
+
+#  - platform: binary
+#    icon: mdi:light-recessed
+#    output: binary_output
+#    name: "Food light"
+#  - platform: binary
+#    icon: mdi:light-recessed
+#    output: binary_output_red
+#    name: "Red light"
