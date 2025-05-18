@@ -11,6 +11,10 @@ esp32:
     type: arduino
     version: recommended
 
+psram:
+  mode: quad
+  speed: 80MHz
+
 udp:
   update_interval: 1s
   providers:
@@ -41,15 +45,16 @@ time:
 
 
 i2c:
-  sda: GPIO33
-  scl: GPIO18
+  sda: GPIO8
+  scl: GPIO9
   scan: true
   frequency: 400kHz
+  #timeout: 13ms
 
 one_wire:
   - platform: gpio
     pin:
-      number: GPIO17
+      number: GPIO21
       mode:
         input: true
         pullup: true
@@ -70,6 +75,7 @@ display:
     model: "SSD1306 128x64"
     address: 0x3C
     update_interval: 100ms
+    rotation: 180
     lambda: |-
       
       if(!isnan(id(presence).state) && id(presence).state == false) {
@@ -164,22 +170,28 @@ binary_sensor:
     name: "bathroom presence"
     id: presence
     internal: true
+    on_press:
+      then:
+          - light.turn_on: indicator_light
+    on_release:
+      then:
+        - light.turn_off: indicator_light
 
-status_led:
-  pin:
-    number: GPIO15
-    inverted: false
-
-#light:
-#  - platform: binary
-#    id: indicator_light
-#    name: "Indicator"
-#    output: indicator_output
-#    restore_mode: ALWAYS_OFF
-#    internal: true
-#
-#output:
-#  - id: indicator_output
-#    platform: gpio
-#    pin: GPIO15
+#status_led:
+#  pin:
+#    number: GPIO15
 #    inverted: false
+
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+    restore_mode: ALWAYS_OFF
+    internal: true
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: GPIO15
+    inverted: false
