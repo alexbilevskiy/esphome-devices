@@ -116,7 +116,15 @@ sensor:
       internal: true
       on_value:
         - lambda: |-
-            id(current_capacity) -= x * (5.0 / 3600.0);  // 5s → Ah
+            float eff;
+            eff = 1.0;
+            if (x > 0) {
+              // discharge
+              eff = 1.05;
+            } else {
+              eff = 0.95;
+            }
+            id(current_capacity) -= x * (5.0 / 3600.0) * eff;  // 5s → Ah
     bus_voltage:
       name: "INA226 Bus Voltage (int)"
       id: ina226_bus_voltage
@@ -162,6 +170,15 @@ sensor:
       - sliding_window_moving_average:
           window_size: 12
           send_every: 12
+    on_value:
+      - lambda: |-
+          if (x > 0.7) {
+            id(display_power).turn_on();  
+          } else {
+            if (id(display_power_override).state == false) {
+              id(display_power).turn_off();
+            }
+          }
 
   - platform: template
     name: "Current capacity"
@@ -206,9 +223,18 @@ switch:
     id: display_power
     name: "display power"
     icon: "mdi:monitor"
+    internal: true
     on_turn_on:
       - delay: 1h
       - switch.turn_off: display_power
+  - platform: template
+    optimistic: true
+    id: display_power_override
+    name: "display power override"
+    icon: "mdi:monitor"
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - switch.turn_on: display_power
 
 number:
   - platform: template
