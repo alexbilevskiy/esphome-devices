@@ -112,6 +112,8 @@ sensor:
     name: Uptime
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
+  - platform: internal_temperature
+    name: "Internal Temperature"
 
   - platform: dallas_temp
     address: 0x980000003b828b28

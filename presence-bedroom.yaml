@@ -36,17 +36,9 @@ wifi:
   fast_connect: true
 
 
-light:
-  - platform: binary
-    name: "Indicator"
-    id: indicator_light
-    output: indicator_output
-    internal: true
-
-output:
-  - id: indicator_output
-    platform: gpio
-    pin: GPIO8
+status_led:
+  pin:
+    number: GPIO8
     inverted: true
 
 uart:
@@ -68,12 +60,6 @@ binary_sensor:
     ld2410_id: ld2410_1
     has_target:
       name: Presence
-      on_press:
-        then:
-          - light.turn_on: indicator_light
-      on_release:
-        then:
-          - light.turn_off: indicator_light
     has_moving_target:
       name: Moving Target
     has_still_target:
@@ -143,6 +129,8 @@ sensor:
       name: light
   - platform: uptime
     name: Uptime
+  - platform: internal_temperature
+    name: "Internal Temperature"
 
 switch:
   - platform: ld2410

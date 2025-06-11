@@ -248,7 +248,8 @@ sensor:
     entity_id: sensor.watermeter_filtered_water_usage
     id: water_usage
 
-
+  - platform: internal_temperature
+    name: "Internal Temperature"
   - platform: uptime
     name: Uptime
 
