@@ -26,8 +26,9 @@ wifi:
 
 bluetooth_proxy:
 
-
 udp:
+packet_transport:
+  platform: udp
   update_interval: 1s
   binary_sensors:
     - id: presence

@@ -288,3 +288,9 @@ select:
       name: light function
     out_pin_level:
       name: out pin level
+
+status_led:
+  pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+    inverted: false
