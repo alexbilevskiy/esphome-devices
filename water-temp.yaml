@@ -16,6 +16,8 @@ psram:
   speed: 80MHz
 
 udp:
+packet_transport:
+  platform: udp
   update_interval: 1s
   providers:
     - name: watermeter-02
@@ -121,43 +123,45 @@ sensor:
     name: "temperature"
     update_interval: 1s
     internal: true
+    filters:
+      - filter_out: nan
 
-  - platform: udp
+  - platform: packet_transport
     provider: watermeter-02
     name: "cold water usage"
     remote_id: cold_water_usage
     id: cold_water_usage
     internal: true
 
-  - platform: udp
+  - platform: packet_transport
     provider: watermeter-02
     name: "cold water flow"
     remote_id: cold_water_flow
     id: cold_water_flow
     internal: true
 
-  - platform: udp
+  - platform: packet_transport
     provider: watermeter-02
     name: "cold water current run"
     remote_id: cold_water_current_run
     id: cold_water_current_run
     internal: true
 
-  - platform: udp
+  - platform: packet_transport
     provider: watermeter-02
     name: "hot water usage"
     remote_id: hot_water_usage
     id: hot_water_usage
     internal: true
 
-  - platform: udp
+  - platform: packet_transport
     provider: watermeter-02
     name: "hot water flow"
     remote_id: hot_water_flow
     id: hot_water_flow
     internal: true
 
-  - platform: udp
+  - platform: packet_transport
     provider: watermeter-02
     name: "hot water current run"
     remote_id: hot_water_current_run
@@ -166,7 +170,7 @@ sensor:
 
 
 binary_sensor:
-  - platform: udp
+  - platform: packet_transport
     provider: ld2410-v2-bathroom
     remote_id: presence
     name: "bathroom presence"
