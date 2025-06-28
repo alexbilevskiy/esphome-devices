@@ -1,21 +1,21 @@
 esphome:
   name: d1-co2
-  friendly_name: d1-co2
+  friendly_name: air-quality
   includes:
     # https://github.com/LeoDJ/ESPHome_Nodes/tree/main/CM1106_CO2_Sensor
     - "cm1106.h"
+  platformio_options:
+    board_build.flash_mode: dio
 
-external_components:
-  - source:
-      type: git
-      url: https://github.com/robertklep/esphome-custom-component
-    components: [ custom, custom_component ]
-
-esp8266:
-  board: d1_mini
+esp32:
+  board: wemos_d1_mini32
+  framework:
+    type: esp-idf
+    version: recommended
 
 logger:
   baud_rate: 0
+  hardware_uart: uart2
 
 api:
   password: ""
@@ -31,19 +31,19 @@ wifi:
   fast_connect: true
 
 i2c:
-  sda: D1
-  scl: D2
+  sda: GPIO23
+  scl: GPIO19
   scan: true
   id: bus_a
 
 uart:
-  - rx_pin: D7
-    tx_pin: D6
+  - rx_pin: GPIO22
+    tx_pin: GPIO25
     baud_rate: 9600
     id: cm1106_uart
 
-  - rx_pin: D5
-    tx_pin: D8 # not connected
+  - rx_pin: GPIO5
+    tx_pin: GPIO33 # not connected
     baud_rate: 9600
     id: pm_2_5_uart
 
@@ -51,35 +51,18 @@ uart:
     tx_pin: TX
     baud_rate: 9600
     id: s8_uart
-    
-light:
-  - platform: binary
-    id: indicator_light
-    name: "Indicator"
-    output: indicator_output
-    restore_mode: ALWAYS_OFF
-
-output:
-  - id: indicator_output
-    platform: gpio
-    pin: D4
-    inverted: true
 
 sensor:
-  - platform: custom
-    lambda: |-
-      auto cm1106Sensor = new CM1106Sensor(id(cm1106_uart), 60000);
-      App.register_component(cm1106Sensor);
-      return {cm1106Sensor};
-    sensors:
-    - name: "CO₂ cm11"
+  - platform: cm1106
+    co2:
+      name: "CO₂ cm11"
       accuracy_decimals: 0
       unit_of_measurement: "ppm"
       device_class: "carbon_dioxide"
       state_class: "measurement"
       icon: "mdi:molecule-co2"
-      filters:
-        - throttle: 15s
+    id: cm1106_sens
+    uart_id: cm1106_uart
 
   - platform: senseair
     co2:
@@ -116,15 +99,13 @@ sensor:
 
   - platform: uptime
     name: Uptime
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+  - platform: internal_temperature
+    name: "Internal Temperature"
 
 switch:
-  - platform: custom
-    lambda: |-
-      auto cm1106Calib = new CM1106CalibrateSwitch(id(cm1106_uart));
-      App.register_component(cm1106Calib);
-      return {cm1106Calib};
-    switches:
-    - name: "CM1106 Zero Calibration"
   - platform: template
     name: "CO₂ S8 ABC"
     optimistic: true
@@ -151,6 +132,13 @@ button:
         - scd30.force_recalibration_with_reference:
             value: !lambda 'return id(co2_cal).state;'
 
+  - platform: template
+    name: "CM1106 Calibration"
+    entity_category: diagnostic
+    on_press:
+      then:
+        - cm1106.calibrate_zero: cm1106_sens
+
 number:
   - platform: template
     name: "CO2 calibration value"
@@ -161,3 +149,9 @@ number:
     id: co2_cal
     icon: "mdi:molecule-co2"
     entity_category: "config"
+
+status_led:
+  pin:
+    number: GPIO2
+    inverted: false
+    ignore_strapping_warning: true
