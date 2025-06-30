@@ -34,6 +34,10 @@ wifi:
   fast_connect: true
   #output_power: 15dbm
 
+one_wire:
+  - platform: gpio
+    pin: GPIO2
+
 climate:
   - platform: haier
     id: haier_ac
@@ -79,6 +83,12 @@ button:
   - platform: restart
     name: "Reboot"
 sensor:
+  - platform: dallas_temp
+    address: 0x1500000627452828
+    name: "heating"
+  - platform: dallas_temp
+    address: 0x3b0000003e59e128
+    name: "collant"
   - platform: uptime
     name: Uptime
   - platform: wifi_signal
