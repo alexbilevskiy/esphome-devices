@@ -1,0 +1,179 @@
+esphome:
+  name: esp-kettle
+  friendly_name: esp-kettle
+
+esp32:
+  board: lolin_s2_mini
+  variant: esp32s2
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 0
+api:
+  password: ""
+ota:
+  platform: esphome
+  password: ""
+safe_mode:
+  disabled: true
+
+preferences:
+  flash_write_interval: 15s
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  power_save_mode: none
+
+time:
+  - platform: sntp
+    id: esptime
+    timezone: Europe/Moscow
+
+i2c:
+  sda: GPIO18
+  scl: GPIO16
+  scan: true
+  frequency: 50kHz
+
+one_wire:
+  - platform: gpio
+    pin:
+      number: GPIO34
+      mode:
+        input: true
+        pullup: true
+
+esp32_touch:
+
+font:
+  - file: "fonts/4x6.bdf"
+    id: f4x6
+    size: 6
+  - file: "fonts/5x8.bdf"
+    id: f5x8
+    size: 8
+  - file: "fonts/10x20.bdf"
+    id: f10x20
+    size: 20
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x32"
+    address: 0x3C
+    update_interval: 1ms
+
+    lambda: |-
+      it.print(0, -3, id(f10x20), "11234");
+      it.print(0, 16, id(f10x20), "11234");
+
+      it.print(128, -3, id(f10x20), TextAlign::TOP_RIGHT, "11234");
+      it.print(128, 16, id(f10x20), TextAlign::TOP_RIGHT, "11234");
+
+switch:
+  - platform: gpio
+    id: water_pump
+    pin: GPIO33
+    name: "water pump"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    id: boil
+    pin:
+      number: GPIO17
+      inverted: true
+    name: "boil"
+    restore_mode: ALWAYS_OFF
+
+
+button:
+  - platform: restart
+    name: Restart
+    entity_category: diagnostic
+
+
+binary_sensor:
+  - platform: gpio
+    id: water_presence
+    name: "water presence"
+    pin:
+      number: GPIO21
+      inverted: true
+      mode:
+        input: true
+
+sensor:
+  - platform: uptime
+    name: Uptime
+
+#  - platform: pulse_meter
+#    id: freq
+#    name: "input freq"
+#    internal: true
+#    pin:
+#      number: GPIO36
+#      inverted: true
+#      mode:
+#        input: true
+#        pulldown: true
+
+  - platform: resistance
+    sensor: source_sensor
+    configuration: DOWNSTREAM
+    resistor: 150kOhm
+    name: Resistance Sensor
+    id: resistance_sensor
+
+  - platform: adc
+    id: source_sensor
+    pin:
+      number: GPIO1
+      mode:
+        input: true
+        pullup: false
+        pulldown: false
+    update_interval: 1s
+    name: ADC Sensor
+    attenuation: auto
+
+light:
+  - platform: binary
+    id: indicator_light
+    name: "Indicator"
+    output: indicator_output
+    restore_mode: ALWAYS_ON
+    internal: true
+  - platform: monochromatic
+    output: led_1_out
+    name: "led 1"
+  - platform: monochromatic
+    output: led_2_out
+    name: "led 2"
+
+output:
+  - id: indicator_output
+    platform: gpio
+    pin: GPIO15
+    inverted: false
+
+#  - platform: ledc
+#    pin: GPIO17
+#    frequency: 50 Hz
+#    id: simistor_out
+
+  - platform: ledc
+    pin:
+      number: GPIO35
+      inverted: false
+    frequency: 1000 Hz
+    id: led_1_out
+
+  - platform: ledc
+    pin:
+      number: GPIO38
+      inverted: false
+    frequency: 1000 Hz
+    id: led_2_out
+
+
