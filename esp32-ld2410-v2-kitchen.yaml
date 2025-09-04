@@ -59,6 +59,7 @@ light:
     output: pwm_output
     name: "PWM 01"
     id: pwm_01
+    default_transition_length: 0s
 
 output:
   - id: indicator_output
