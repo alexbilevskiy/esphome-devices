@@ -45,6 +45,15 @@ time:
     id: esptime
     timezone: Europe/Moscow
 
+globals:
+  - id: cold_flow_real_filtered
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: hot_flow_real_filtered
+    type: float
+    restore_value: no
+    initial_value: '0.0'
 
 i2c:
   sda: GPIO8
@@ -71,6 +80,11 @@ font:
     id: f10x20
   - file: "fonts/helvR08.bdf"
     id: fh08
+    glyphs:
+      - "³"
+      - "°"
+    glyphsets:
+      - GF_Latin_Kernel
 
 display:
   - platform: ssd1306_i2c
@@ -98,12 +112,30 @@ display:
 
       it.printf(0, 0, id(f10x20), "%.1f°C", id(temp).state);
       
-      it.printf(0, 16, id(fh08), "C: %.1fL, %.1fL/min", id(cold_water_current_run).state, id(cold_water_flow).state);
-      it.printf(0, 27, id(fh08), "H: %.1fL, %.1fL/min", id(hot_water_current_run).state, id(hot_water_flow).state);
-      it.printf(0, 38, id(fh08), "Totals:");
-      it.printf(0, 49, id(fh08), "C: %.0fL, H: %.0fL", id(cold_water_usage).state, id(hot_water_usage).state);
+      it.printf(0, 16, id(fh08), "C: %.1fL, %.1fM³, %.1fL/min", id(cold_water_current_run).state, id(cold_water_usage).state/1000, id(filtered_cold_water_flow_2).state);
+      it.printf(0, 27, id(fh08), "H: %.1fL, %.1fM³, %.1fL/min", id(hot_water_current_run).state, id(hot_water_usage).state/1000, id(filtered_hot_water_flow_2).state);
+      //it.printf(0, 38, id(fh08), "Totals:");
+      //it.printf(0, 49, id(fh08), "C: %.0fL, H: %.0fL", id(cold_water_usage).state, id(hot_water_usage).state);
+      
+      it.graph(0, 39, id(water_graph));
       
       return;
+graph:
+  - id: water_graph
+    duration: 1min
+    width: 128
+    height: 22
+    #x_grid: 10s
+    #y_grid: 5.0
+    border: false
+    traces:
+      - sensor: filtered_cold_water_flow_2
+        line_thickness: 1
+        line_type: SOLID
+      - sensor: filtered_hot_water_flow_2
+        line_thickness: 1
+        line_type: DOTTED
+
 
 button:
   - platform: restart
@@ -140,6 +172,47 @@ sensor:
     id: cold_water_flow
     internal: true
 
+
+  - platform: template
+    name: "Cold Water Flow Filtered"
+    id: filtered_cold_water_flow
+    lambda: |-
+      return id(cold_water_flow).state;
+    update_interval: 0.1s
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 2
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            if (x < 0 || x > 12) return;
+            
+            static std::vector<float> window;
+            static int count = 0; // Counter for send_every
+            window.push_back(x);
+            int size = 20;
+            if (window.size() > size)
+              window.erase(window.begin());
+            
+            count++;
+            if (count >= 5 && window.size() == size) {
+              count = 0;
+              float sum = 0;
+              for (float v : window) sum += v;
+              id(cold_flow_real_filtered) = sum / size;
+            }
+
+  - platform: template
+    name: "COld Water Flow Filtered 2"
+    id: filtered_cold_water_flow_2
+    lambda: |-
+      return id(cold_flow_real_filtered);
+    update_interval: 0.1s
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 2
+    internal: true
+
   - platform: packet_transport
     provider: watermeter-02
     name: "cold water current run"
@@ -159,6 +232,46 @@ sensor:
     name: "hot water flow"
     remote_id: hot_water_flow
     id: hot_water_flow
+    internal: true
+
+  - platform: template
+    name: "Hot Water Flow Filtered"
+    id: filtered_hot_water_flow
+    lambda: |-
+      return id(hot_water_flow).state;
+    update_interval: 0.1s
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 2
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            if (x < 0 || x > 12) return;
+            
+            static std::vector<float> window;
+            static int count = 0; // Counter for send_every
+            window.push_back(x);
+            int size = 20;
+            if (window.size() > size)
+              window.erase(window.begin());
+            
+            count++;
+            if (count >= 5 && window.size() == size) {
+              count = 0;
+              float sum = 0;
+              for (float v : window) sum += v;
+              id(hot_flow_real_filtered) = sum / size;
+            }
+
+  - platform: template
+    name: "Hot Water Flow Filtered 2"
+    id: filtered_hot_water_flow_2
+    lambda: |-
+      return id(hot_flow_real_filtered);
+    update_interval: 0.1s
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 2
     internal: true
 
   - platform: packet_transport
