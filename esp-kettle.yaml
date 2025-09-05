@@ -1,3 +1,4 @@
+# kitfort kt-6723 controller replacement
 esphome:
   name: esp-kettle
   friendly_name: esp-kettle
@@ -38,15 +39,10 @@ i2c:
   scan: true
   frequency: 50kHz
 
-one_wire:
-  - platform: gpio
-    pin:
-      number: GPIO34
-      mode:
-        input: true
-        pullup: true
-
 esp32_touch:
+  setup_mode: false
+  measurement_duration: 0.25ms
+  sleep_duration: 0.5ms
 
 font:
   - file: "fonts/4x6.bdf"
@@ -69,8 +65,10 @@ display:
       it.print(0, -3, id(f10x20), "11234");
       it.print(0, 16, id(f10x20), "11234");
 
-      it.print(128, -3, id(f10x20), TextAlign::TOP_RIGHT, "11234");
-      it.print(128, 16, id(f10x20), TextAlign::TOP_RIGHT, "11234");
+      esphome::ESPTime now = id(esptime).now();
+      it.strftime(80, -3, id(f10x20), "%H", now);
+      it.print(98, -3, id(f10x20), ":");
+      it.strftime(106, -3, id(f10x20), "%M", now);
 
 switch:
   - platform: gpio
@@ -102,6 +100,23 @@ binary_sensor:
       inverted: true
       mode:
         input: true
+  - platform: esp32_touch
+    name: "Touch Pad 01"
+    pin: GPIO2
+    threshold: 1000
+  - platform: esp32_touch
+    name: "Touch Pad 02"
+    pin: GPIO3
+    threshold: 1000
+  - platform: esp32_touch
+    name: "Touch Pad 03"
+    pin: GPIO4
+    threshold: 1000
+  - platform: esp32_touch
+    name: "Touch Pad 04"
+    pin: GPIO5
+    threshold: 1000
+
 
 sensor:
   - platform: uptime
@@ -144,12 +159,44 @@ light:
     output: indicator_output
     restore_mode: ALWAYS_ON
     internal: true
+
   - platform: monochromatic
-    output: led_1_out
-    name: "led 1"
+    output: backlight_1_out
+    name: "backlight blue"
+    default_transition_length: 0s
   - platform: monochromatic
-    output: led_2_out
-    name: "led 2"
+    output: backlight_2_out
+    name: "backlight yellow"
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_1
+    name: led_1
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_2
+    name: led_2
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_3
+    name: led_3
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_4
+    name: led_4
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_5
+    name: led_5
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_6
+    name: led_6
+    default_transition_length: 0s
+  - platform: monochromatic
+    output: led_7
+    name: led_7
+    default_transition_length: 0s
+
 
 output:
   - id: indicator_output
@@ -167,13 +214,83 @@ output:
       number: GPIO35
       inverted: false
     frequency: 1000 Hz
-    id: led_1_out
+    id: backlight_1_out
 
   - platform: ledc
     pin:
       number: GPIO38
       inverted: false
     frequency: 1000 Hz
-    id: led_2_out
+    id: backlight_2_out
 
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_1
+    pin:
+      number: GPIO11
+      mode:
+        output: true
+    inverted: false
+    channel: 1
+    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_2
+    pin:
+      number: GPIO7
+      mode:
+        output: true
+    inverted: false
+    channel: 2
+    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_3
+    pin:
+      number: GPIO8
+      mode:
+        output: true
+    inverted: false
+    channel: 3
+    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_4
+    pin:
+      number: GPIO13
+      mode:
+        output: true
+    inverted: false
+    channel: 4
+    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_5
+    pin:
+      number: GPIO12
+      mode:
+        output: true
+    inverted: false
+    channel: 5
+    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_6
+    pin:
+      number: GPIO9
+      mode:
+        output: true
+    inverted: false
+    channel: 6
+    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_7
+    pin:
+      number: GPIO10
+      mode:
+        output: true
+    inverted: false
+    channel: 7
+    phase_angle: 0
 
