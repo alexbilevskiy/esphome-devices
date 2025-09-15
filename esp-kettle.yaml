@@ -54,21 +54,29 @@ font:
   - file: "fonts/10x20.bdf"
     id: f10x20
     size: 20
+  - file: "fonts/helvR08.bdf"
+    id: fh08
 
 display:
   - platform: ssd1306_i2c
     model: "SSD1306 128x32"
     address: 0x3C
-    update_interval: 1ms
+    update_interval: 100ms
 
     lambda: |-
-      it.print(0, -3, id(f10x20), "11234");
-      it.print(0, 16, id(f10x20), "11234");
+      //it.print(0, -3, id(f10x20), "11234");
+      //it.print(0, 16, id(f10x20), "11234");
 
       esphome::ESPTime now = id(esptime).now();
       it.strftime(80, -3, id(f10x20), "%H", now);
       it.print(98, -3, id(f10x20), ":");
       it.strftime(106, -3, id(f10x20), "%M", now);
+
+      it.printf(0, -3, id(f10x20), "%.0f°C", id(temp).state);
+      it.printf(0, 16, id(f10x20), "%.2fL", id(volume).state);
+
+      it.printf(128, 22, id(fh08), TextAlign::TOP_RIGHT, "Filter: %.2fL", id(water_usage).state);
+
 
 switch:
   - platform: gpio
@@ -76,14 +84,27 @@ switch:
     pin: GPIO33
     name: "water pump"
     restore_mode: ALWAYS_OFF
+    internal: true
+
   - platform: gpio
     id: boil
     pin:
       number: GPIO17
       inverted: true
-    name: "boil"
     restore_mode: ALWAYS_OFF
+    internal: true
 
+  - platform: template
+    id: boil_safe
+    name: "boil"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        - script.execute: boil_safe_on
+    on_turn_off:
+      then:
+        - script.execute: boil_off
 
 button:
   - platform: restart
@@ -100,23 +121,47 @@ binary_sensor:
       inverted: true
       mode:
         input: true
+    on_press:
+      - script.execute: boil_check_unsafe
+    on_release:
+      - script.execute: boil_check_unsafe
+
   - platform: esp32_touch
-    name: "Touch Pad 01"
+    name: "button power"
     pin: GPIO2
     threshold: 1000
+    internal: true
   - platform: esp32_touch
-    name: "Touch Pad 02"
+    name: "button mode"
     pin: GPIO3
     threshold: 1000
+    internal: true
   - platform: esp32_touch
-    name: "Touch Pad 03"
+    name: "button fire"
+    internal: true
     pin: GPIO4
     threshold: 1000
+    on_press:
+      then:
+        - if:
+            condition:
+              - lambda: 'return id(boil).state == false;'
+            then:
+              - script.execute: boil_safe_on
+            else:
+              - script.execute: boil_off
+
   - platform: esp32_touch
-    name: "Touch Pad 04"
+    name: "button pump"
     pin: GPIO5
     threshold: 1000
-
+    internal: true
+    on_press:
+      then:
+        - script.execute: water_pump_on
+    on_release:
+      then:
+        - script.execute: water_pump_off
 
 sensor:
   - platform: uptime
@@ -134,23 +179,62 @@ sensor:
 #        pulldown: true
 
   - platform: resistance
-    sensor: source_sensor
+    sensor: adc_sensor
     configuration: DOWNSTREAM
     resistor: 150kOhm
     name: Resistance Sensor
     id: resistance_sensor
+    internal: true
 
   - platform: adc
-    id: source_sensor
+    internal: true
+    id: adc_sensor
     pin:
       number: GPIO1
       mode:
         input: true
         pullup: false
         pulldown: false
-    update_interval: 1s
+    update_interval: 0.1s
     name: ADC Sensor
     attenuation: auto
+
+  - platform: ntc
+    sensor: resistance_sensor
+    calibration:
+      - 175387 Ohm -> 27.5°C
+      - 55958 Ohm -> 51.5°C
+      - 10096 Ohm -> 96°C
+    name: "Water Temperature"
+    id: temp
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 10
+
+  - platform: hx711
+    name: "Water Volume"
+    device_class: "volume_storage"
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    dout_pin: GPIO39
+    clk_pin: GPIO40
+    gain: 128
+    update_interval: 1s
+    id: volume
+    filters:
+      - calibrate_linear:
+          - 835640 -> 0
+          - 1064652 -> 1
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+      - throttle: 5s
+
+  - platform: homeassistant
+    name: "Filtered water volume"
+    entity_id: sensor.watermeter_filtered_water_usage
+    id: water_usage
 
 light:
   - platform: binary
@@ -169,33 +253,46 @@ light:
     name: "backlight yellow"
     default_transition_length: 0s
   - platform: monochromatic
-    output: led_1
-    name: led_1
+    output: led_1_out
+    name: led_button_80
+    default_transition_length: 0s
+    internal: true
+  - platform: monochromatic
+    output: led_2_out
+    name: led_button_mode
+    default_transition_length: 0s
+    internal: true
+  - platform: monochromatic
+    output: led_3_out
+    name: led_button_fire
+    id: led_3
+    internal: true
     default_transition_length: 0s
   - platform: monochromatic
-    output: led_2
-    name: led_2
+    output: led_4_out
+    name: led_button_pump
+    id: led_4
     default_transition_length: 0s
+    internal: true
   - platform: monochromatic
-    output: led_3
-    name: led_3
+    output: led_5_out
+    name: led_button_90
     default_transition_length: 0s
+    internal: true
   - platform: monochromatic
-    output: led_4
-    name: led_4
+    output: led_6_out
+    name: led_button_100
     default_transition_length: 0s
-  - platform: monochromatic
-    output: led_5
-    name: led_5
-    default_transition_length: 0s
-  - platform: monochromatic
-    output: led_6
-    name: led_6
-    default_transition_length: 0s
-  - platform: monochromatic
-    output: led_7
-    name: led_7
-    default_transition_length: 0s
+    internal: true
+#  - platform: monochromatic
+#    output: led_7_out
+#    name: button_power
+#    default_transition_length: 0s
+
+status_led:
+  pin:
+    number: GPIO10
+    drive_strength: 5mA
 
 
 output:
@@ -225,7 +322,7 @@ output:
 
   - platform: ledc
     frequency: 1000 Hz
-    id: led_1
+    id: led_1_out
     pin:
       number: GPIO11
       mode:
@@ -235,7 +332,7 @@ output:
     phase_angle: 0
   - platform: ledc
     frequency: 1000 Hz
-    id: led_2
+    id: led_2_out
     pin:
       number: GPIO7
       mode:
@@ -245,7 +342,7 @@ output:
     phase_angle: 0
   - platform: ledc
     frequency: 1000 Hz
-    id: led_3
+    id: led_3_out
     pin:
       number: GPIO8
       mode:
@@ -255,7 +352,7 @@ output:
     phase_angle: 0
   - platform: ledc
     frequency: 1000 Hz
-    id: led_4
+    id: led_4_out
     pin:
       number: GPIO13
       mode:
@@ -265,7 +362,7 @@ output:
     phase_angle: 0
   - platform: ledc
     frequency: 1000 Hz
-    id: led_5
+    id: led_5_out
     pin:
       number: GPIO12
       mode:
@@ -275,7 +372,7 @@ output:
     phase_angle: 0
   - platform: ledc
     frequency: 1000 Hz
-    id: led_6
+    id: led_6_out
     pin:
       number: GPIO9
       mode:
@@ -283,14 +380,58 @@ output:
     inverted: false
     channel: 6
     phase_angle: 0
-  - platform: ledc
-    frequency: 1000 Hz
-    id: led_7
-    pin:
-      number: GPIO10
-      mode:
-        output: true
-    inverted: false
-    channel: 7
-    phase_angle: 0
+#  - platform: ledc
+#    frequency: 1000 Hz
+#    id: led_7_out
+#    pin:
+#      number: GPIO10
+#      mode:
+#        output: true
+#    inverted: false
+#    channel: 7
+#    phase_angle: 0
 
+interval:
+  - interval: 1s
+    then:
+      - script.execute: boil_check_unsafe
+
+script:
+  - id: boil_on
+    then:
+      - light.turn_on: led_3
+      - switch.turn_on: boil
+      - lambda: 'id(boil_safe).publish_state(true);'
+  - id: boil_off
+    then:
+      - switch.turn_off: boil
+      - light.turn_off: led_3
+      - lambda: 'id(boil_safe).publish_state(false);'
+
+  - id: boil_check_unsafe
+    then:
+      - if:
+          any:
+            - lambda: 'return id(temp).state >= 99;'
+            - lambda: 'return id(water_presence).state == false;'
+          then:
+            - script.execute: boil_off
+  - id: boil_safe_on
+    then:
+      - if:
+          condition:
+            - lambda: 'return id(temp).state < 99;'
+            - lambda: 'return id(water_presence).state == true;'
+          then:
+            - script.execute: boil_on
+          else:
+            - script.execute: boil_off
+
+  - id: water_pump_on
+    then:
+      - switch.turn_on: water_pump
+      - light.turn_on: led_4
+  - id: water_pump_off
+    then:
+      - switch.turn_off: water_pump
+      - light.turn_off: led_4
