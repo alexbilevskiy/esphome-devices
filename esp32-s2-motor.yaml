@@ -4,6 +4,14 @@
 esphome:
   name: esp32-s2-motor
   friendly_name: esp32-s2-motor
+  on_boot:
+    priority: 500
+    then:
+      - button.press: motor_full
+      - delay: 500ms
+      - button.press: motor_idle
+      - delay: 1500ms
+      - button.press: motor_50
 
 esp32:
   board: lolin_s2_mini
@@ -49,16 +57,19 @@ button:
       lambda: |-
         id(motor_output).turn_off();
   - platform: template
+    id: motor_idle
     name: "motor idle"
     on_press:
       lambda: |-
         id(motor_output).set_level(0.075); // 1.5ms / 20ms
   - platform: template
+    id: motor_full
     name: "motor full"
     on_press:
       lambda: |-
         id(motor_output).set_level(0.1); // 2ms / 20ms
   - platform: template
+    id: motor_50
     name: "motor 50%"
     on_press:
       lambda: |-
@@ -69,6 +80,7 @@ button:
       lambda: |-
         id(motor_output).set_level((1.5+(2-1.5)/100*20)/20);
   - platform: template
+    id: motor_30
     name: "motor 30%"
     on_press:
       lambda: |-
