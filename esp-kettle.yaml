@@ -2,6 +2,10 @@
 esphome:
   name: esp-kettle
   friendly_name: esp-kettle
+  on_boot:
+    priority: 500
+    then:
+      switch.turn_on: buttons_lock
 
 esp32:
   board: lolin_s2_mini
@@ -11,6 +15,8 @@ esp32:
 
 logger:
   baud_rate: 0
+  level: WARN
+
 api:
   password: ""
 ota:
@@ -27,6 +33,13 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
   power_save_mode: none
+
+udp:
+packet_transport:
+  platform: udp
+  update_interval: 1s
+  providers:
+    - name: esp32-ld2410-v2
 
 time:
   - platform: sntp
@@ -61,18 +74,36 @@ display:
   - platform: ssd1306_i2c
     model: "SSD1306 128x32"
     address: 0x3C
-    update_interval: 100ms
+    update_interval: 1s
 
     lambda: |-
       //it.print(0, -3, id(f10x20), "11234");
       //it.print(0, 16, id(f10x20), "11234");
+      
+      bool offline = id(presence).state == false;
+      
+      if(id(display_override).state) {
+          if(id(display_power).state == false) {
+              it.print(rand() % 100, rand() % 28, id(f4x6), "Who are you?");
+              return;              
+          }
+      } else {
+          if(!isnan(id(kitchen_presence).state) && id(kitchen_presence).state == false) {
+              it.print(rand() % 100, rand() % 28, id(f4x6), "Who are you?");
+              return;              
+          }
+      }
 
       esphome::ESPTime now = id(esptime).now();
       it.strftime(80, -3, id(f10x20), "%H", now);
       it.print(98, -3, id(f10x20), ":");
       it.strftime(106, -3, id(f10x20), "%M", now);
-
-      it.printf(0, -3, id(f10x20), "%.0f°C", id(temp).state);
+      
+      if (!offline) {
+          it.printf(0, -3, id(f10x20), "%.0f°C", id(temp).state);
+      } else {
+          it.printf(0, -3, id(f10x20), "Offline");    
+      }
       it.printf(0, 16, id(f10x20), "%.2fL", id(volume).state);
 
       it.printf(128, 22, id(fh08), TextAlign::TOP_RIGHT, "Filter: %.2fL", id(water_usage).state);
@@ -106,11 +137,52 @@ switch:
       then:
         - script.execute: boil_off
 
+  - platform: template
+    id: buttons_lock
+    name: "buttons lock"
+    optimistic: true
+    restore_mode: ALWAYS_ON
+    on_turn_off:
+      - script.execute: light_turn_on_power
+      - script.execute: light_dim_mode
+      - script.execute: light_dim_fire
+      - script.execute: light_dim_pump
+      - switch.turn_on: display_override
+      - switch.turn_on: display_power
+      - delay: 1min
+      - switch.turn_on: buttons_lock
+    on_turn_on:
+      - script.execute: light_dim_power
+      - script.execute: light_dim_mode
+      - script.execute: light_dim_fire
+      - script.execute: light_dim_pump
+      - switch.turn_off: display_override
+      - switch.turn_off: display_power
+
+  - platform: template
+    optimistic: true
+    id: display_override
+    restore_mode: ALWAYS_OFF
+    name: "display override"
+    icon: "mdi:monitor-lock"
+    entity_category: diagnostic
+  - platform: template
+    optimistic: true
+    id: display_power
+    name: "display power"
+    icon: "mdi:monitor"
+    entity_category: diagnostic
+
 button:
   - platform: restart
     name: Restart
     entity_category: diagnostic
 
+  - platform: template
+    name: Autorun
+    on_press:
+      then:
+        - script.execute: autorun
 
 binary_sensor:
   - platform: gpio
@@ -126,16 +198,47 @@ binary_sensor:
     on_release:
       - script.execute: boil_check_unsafe
 
+  - platform: packet_transport
+    provider: esp32-ld2410-v2
+    name: "kitchen presence"
+    remote_id: presence
+    id: kitchen_presence
+    internal: true
+  - platform: template
+    name: "kettle presence"
+    id: presence
+    icon: "mdi:kettle-alert"
+    lambda: |-
+      if (id(temp).state <= 10) {
+          return false;
+      }
+      return true;
+
   - platform: esp32_touch
     name: "button power"
     pin: GPIO2
     threshold: 1000
     internal: true
+    on_press:
+      then:
+        - switch.toggle: buttons_lock
+
   - platform: esp32_touch
     name: "button mode"
     pin: GPIO3
     threshold: 1000
     internal: true
+    on_press:
+      then:
+        - if:
+            condition:
+              - lambda: 'return id(boil).state == false;'
+              - lambda: 'return id(buttons_lock).state == false;'
+            then:
+              - script.execute: autorun
+            else:
+              - script.execute: boil_off
+
   - platform: esp32_touch
     name: "button fire"
     internal: true
@@ -146,6 +249,7 @@ binary_sensor:
         - if:
             condition:
               - lambda: 'return id(boil).state == false;'
+              - lambda: 'return id(buttons_lock).state == false;'
             then:
               - script.execute: boil_safe_on
             else:
@@ -158,7 +262,12 @@ binary_sensor:
     internal: true
     on_press:
       then:
-        - script.execute: water_pump_on
+        - if:
+            condition:
+              - lambda: 'return id(boil).state == false;'
+              - lambda: 'return id(buttons_lock).state == false;'
+            then:
+              - script.execute: water_pump_on
     on_release:
       then:
         - script.execute: water_pump_off
@@ -166,6 +275,8 @@ binary_sensor:
 sensor:
   - platform: uptime
     name: Uptime
+  - platform: internal_temperature
+    name: "Internal Temperature"
 
 #  - platform: pulse_meter
 #    id: freq
@@ -197,20 +308,20 @@ sensor:
         pulldown: false
     update_interval: 0.1s
     name: ADC Sensor
-    attenuation: auto
+    attenuation: 12db
 
   - platform: ntc
     sensor: resistance_sensor
     calibration:
       - 175387 Ohm -> 27.5°C
       - 55958 Ohm -> 51.5°C
-      - 10096 Ohm -> 96°C
+      - 10096 Ohm -> 97°C
     name: "Water Temperature"
     id: temp
     filters:
       - sliding_window_moving_average:
-          window_size: 10
-          send_every: 10
+          window_size: 5
+          send_every: 5
 
   - platform: hx711
     name: "Water Volume"
@@ -220,7 +331,7 @@ sensor:
     dout_pin: GPIO39
     clk_pin: GPIO40
     gain: 128
-    update_interval: 1s
+    update_interval: 0.1s
     id: volume
     filters:
       - calibrate_linear:
@@ -228,8 +339,14 @@ sensor:
           - 1064652 -> 1
       - sliding_window_moving_average:
           window_size: 5
-          send_every: 5
-      - throttle: 5s
+          send_every: 10
+  - platform: template
+    name: "Water Previous volume"
+    id: previous_volume
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    update_interval: 1s
+    internal: true
 
   - platform: homeassistant
     name: "Filtered water volume"
@@ -248,10 +365,12 @@ light:
     output: backlight_1_out
     name: "backlight blue"
     default_transition_length: 0s
+    internal: true
   - platform: monochromatic
     output: backlight_2_out
     name: "backlight yellow"
     default_transition_length: 0s
+    internal: true
   - platform: monochromatic
     output: led_1_out
     name: led_button_80
@@ -259,19 +378,20 @@ light:
     internal: true
   - platform: monochromatic
     output: led_2_out
+    id: led_mode
     name: led_button_mode
     default_transition_length: 0s
     internal: true
   - platform: monochromatic
     output: led_3_out
     name: led_button_fire
-    id: led_3
+    id: led_fire
     internal: true
     default_transition_length: 0s
   - platform: monochromatic
     output: led_4_out
     name: led_button_pump
-    id: led_4
+    id: led_pump
     default_transition_length: 0s
     internal: true
   - platform: monochromatic
@@ -284,16 +404,12 @@ light:
     name: led_button_100
     default_transition_length: 0s
     internal: true
-#  - platform: monochromatic
-#    output: led_7_out
-#    name: button_power
-#    default_transition_length: 0s
-
-status_led:
-  pin:
-    number: GPIO10
-    drive_strength: 5mA
-
+  - platform: monochromatic
+    output: led_7_out
+    name: led_button_power
+    id: led_power
+    default_transition_length: 0s
+    internal: true
 
 output:
   - id: indicator_output
@@ -380,32 +496,37 @@ output:
     inverted: false
     channel: 6
     phase_angle: 0
-#  - platform: ledc
-#    frequency: 1000 Hz
-#    id: led_7_out
-#    pin:
-#      number: GPIO10
-#      mode:
-#        output: true
-#    inverted: false
-#    channel: 7
-#    phase_angle: 0
+  - platform: ledc
+    frequency: 1000 Hz
+    id: led_7_out
+    pin:
+      number: GPIO10
+      mode:
+        output: true
+    inverted: false
+    channel: 7
+    phase_angle: 0
 
 interval:
-  - interval: 1s
+  - interval: 0.1s
     then:
       - script.execute: boil_check_unsafe
+      - script.execute: water_pump_check_unsafe
 
 script:
   - id: boil_on
     then:
-      - light.turn_on: led_3
-      - switch.turn_on: boil
+      - script.execute: light_turn_on_fire
+      - switch.turn_on: display_override
+      - switch.turn_on: display_power
       - lambda: 'id(boil_safe).publish_state(true);'
+      - switch.turn_on: boil
   - id: boil_off
     then:
       - switch.turn_off: boil
-      - light.turn_off: led_3
+      - script.execute: light_dim_fire
+      - switch.turn_off: display_override
+      - switch.turn_off: display_power
       - lambda: 'id(boil_safe).publish_state(false);'
 
   - id: boil_check_unsafe
@@ -422,6 +543,7 @@ script:
           condition:
             - lambda: 'return id(temp).state < 99;'
             - lambda: 'return id(water_presence).state == true;'
+            - lambda: 'return id(volume).state >= 0.2;'
           then:
             - script.execute: boil_on
           else:
@@ -429,9 +551,116 @@ script:
 
   - id: water_pump_on
     then:
-      - switch.turn_on: water_pump
-      - light.turn_on: led_4
+      - if:
+          condition:
+            - lambda: 'return id(presence).state == true;'
+            - lambda: 'return id(volume).state < 0.92;'
+          then:
+            - lambda: 'id(previous_volume).publish_state(id(volume).state);'
+            - script.execute: light_turn_on_pump
+            - switch.turn_on: water_pump
   - id: water_pump_off
     then:
       - switch.turn_off: water_pump
-      - light.turn_off: led_4
+      - script.execute: light_dim_pump
+
+  - id: water_pump_check_unsafe
+    then:
+      - if:
+          any:
+            - lambda: 'return id(presence).state == false;'
+            - lambda: 'return isnan(id(presence).state);'
+            - lambda: 'return id(volume).state >= 0.92;'
+          then:
+            - script.execute: water_pump_off
+
+  - id: autorun
+    then:
+      - script.execute: light_turn_on_mode
+      - script.execute: water_pump_on
+      - if:
+          condition:
+            - lambda: 'return id(volume).state < 0.2;'
+          then:
+            - delay: 10s
+      - script.execute: boil_safe_on
+      - delay: 5s
+      - script.execute: light_dim_mode
+
+  - id: light_turn_on_power
+    then:
+      - light.turn_on:
+          id: led_power
+          brightness: 100%
+
+  - id: light_dim_power
+    then:
+      - light.turn_on:
+          id: led_power
+          brightness: 30%
+
+  - id: light_turn_on_pump
+    then:
+      - light.turn_on:
+          id: led_pump
+          brightness: 100%
+
+  - id: light_dim_pump
+    then:
+      - if:
+          condition:
+            - lambda: 'return id(water_pump).state == true;'
+          then:
+            - script.stop: light_dim_pump
+      - if:
+          condition:
+            - lambda: 'return id(buttons_lock).state == false;'
+          then:
+            - light.turn_on:
+                id: led_pump
+                brightness: 30%
+          else:
+            - light.turn_off: led_pump
+
+  - id: light_turn_on_mode
+    then:
+      - light.turn_on:
+          id: led_mode
+          brightness: 100%
+
+  - id: light_dim_mode
+    then:
+      - if:
+          condition:
+            - lambda: 'return id(buttons_lock).state == false;'
+          then:
+            - light.turn_on:
+                id: led_mode
+                brightness: 30%
+          else:
+            - light.turn_off: led_mode
+
+
+  - id: light_turn_on_fire
+    then:
+      - light.turn_on:
+          id: led_fire
+          brightness: 100%
+
+  - id: light_dim_fire
+    then:
+      - if:
+          condition:
+            - lambda: 'return id(boil).state == true;'
+          then:
+            - script.stop: light_dim_fire
+      - if:
+          condition:
+            - lambda: 'return id(buttons_lock).state == false;'
+          then:
+            - light.turn_on:
+                id: led_fire
+                brightness: 30%
+          else:
+            - light.turn_off: led_fire
+
