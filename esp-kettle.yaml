@@ -535,6 +535,7 @@ script:
           any:
             - lambda: 'return id(temp).state >= 99;'
             - lambda: 'return id(water_presence).state == false;'
+            - lambda: 'return id(volume).state <= 0.22;'
           then:
             - script.execute: boil_off
   - id: boil_safe_on
@@ -543,7 +544,7 @@ script:
           condition:
             - lambda: 'return id(temp).state < 99;'
             - lambda: 'return id(water_presence).state == true;'
-            - lambda: 'return id(volume).state >= 0.2;'
+            - lambda: 'return id(volume).state >= 0.55 || id(water_pump).state == true;'
           then:
             - script.execute: boil_on
           else:
