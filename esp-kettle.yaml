@@ -185,18 +185,18 @@ button:
         - script.execute: autorun
 
 binary_sensor:
-  - platform: gpio
-    id: water_presence
-    name: "water presence"
-    pin:
-      number: GPIO21
-      inverted: true
-      mode:
-        input: true
-    on_press:
-      - script.execute: boil_check_unsafe
-    on_release:
-      - script.execute: boil_check_unsafe
+#  - platform: gpio
+#    id: water_presence
+#    name: "water presence"
+#    pin:
+#      number: GPIO21
+#      inverted: true
+#      mode:
+#        input: true
+#    on_press:
+#      - script.execute: boil_check_unsafe
+#    on_release:
+#      - script.execute: boil_check_unsafe
 
   - platform: packet_transport
     provider: esp32-ld2410-v2
@@ -532,18 +532,44 @@ script:
   - id: boil_check_unsafe
     then:
       - if:
-          any:
+          condition:
+            - lambda: 'return id(boil).state == false;'
+          then:
+            - script.stop: boil_check_unsafe
+      - if:
+          condition:
             - lambda: 'return id(temp).state >= 99;'
-            - lambda: 'return id(water_presence).state == false;'
+          then:
+            - logger.log:
+                format: "turn off boil by temp"
+                level: WARN
+            - script.execute: boil_off
+            - script.stop: boil_check_unsafe
+      - if:
+          condition:
+            - lambda: 'return id(presence).state == false;'
+          then:
+            - logger.log:
+                format: "turn off boil by presence"
+                level: WARN
+            - script.execute: boil_off
+            - script.stop: boil_check_unsafe
+      - if:
+          condition:
             - lambda: 'return id(volume).state <= 0.22;'
           then:
+            - logger.log:
+                format: "turn off boil by volume"
+                level: WARN
             - script.execute: boil_off
+            - script.stop: boil_check_unsafe
+
   - id: boil_safe_on
     then:
       - if:
           condition:
             - lambda: 'return id(temp).state < 99;'
-            - lambda: 'return id(water_presence).state == true;'
+            - lambda: 'return id(presence).state == true;'
             - lambda: 'return id(volume).state >= 0.55 || id(water_pump).state == true;'
           then:
             - script.execute: boil_on
