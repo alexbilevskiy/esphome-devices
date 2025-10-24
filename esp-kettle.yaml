@@ -334,6 +334,9 @@ sensor:
     update_interval: 0.1s
     id: volume
     filters:
+      - clamp:
+          min_value: 10000
+          ignore_out_of_range: true
       - calibrate_linear:
           - 835640 -> 0
           - 1064652 -> 1
@@ -352,6 +355,12 @@ sensor:
     name: "Filtered water volume"
     entity_id: sensor.watermeter_filtered_water_usage
     id: water_usage
+
+text_sensor:
+  platform: template
+  name: shutdown reason
+  id: shutdown_reason
+  update_interval: 1s
 
 light:
   - platform: binary
@@ -520,6 +529,7 @@ script:
       - switch.turn_on: display_override
       - switch.turn_on: display_power
       - lambda: 'id(boil_safe).publish_state(true);'
+      - lambda: 'id(shutdown_reason).publish_state({""});'
       - switch.turn_on: boil
   - id: boil_off
     then:
@@ -543,6 +553,7 @@ script:
             - logger.log:
                 format: "turn off boil by temp"
                 level: WARN
+            - lambda: 'id(shutdown_reason).publish_state("temp: " + std::to_string(id(temp).state));'
             - script.execute: boil_off
             - script.stop: boil_check_unsafe
       - if:
@@ -552,6 +563,7 @@ script:
             - logger.log:
                 format: "turn off boil by presence"
                 level: WARN
+            - lambda: 'id(shutdown_reason).publish_state("presence: " + std::to_string(id(presence).state));'
             - script.execute: boil_off
             - script.stop: boil_check_unsafe
       - if:
@@ -559,8 +571,10 @@ script:
             - lambda: 'return id(volume).state <= 0.22;'
           then:
             - logger.log:
-                format: "turn off boil by volume"
+                format: "turn off boil by volume: %d"
+                args: ['id(volume).state']
                 level: WARN
+            - lambda: 'id(shutdown_reason).publish_state("volume: " + std::to_string(id(volume).state));'
             - script.execute: boil_off
             - script.stop: boil_check_unsafe
 
@@ -597,7 +611,7 @@ script:
           any:
             - lambda: 'return id(presence).state == false;'
             - lambda: 'return isnan(id(presence).state);'
-            - lambda: 'return id(volume).state >= 0.92;'
+            - lambda: 'return id(volume).state >= 0.91;'
           then:
             - script.execute: water_pump_off
 
