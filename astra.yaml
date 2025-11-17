@@ -3,6 +3,22 @@ esphome:
   friendly_name: astra
   platformio_options:
     board_build.flash_mode: dio
+  includes:
+    - "custom_components/EHU32/src/esphome_utils.h"
+    - "custom_components/EHU32/src/EHU32.h"
+    - "custom_components/EHU32/src/CAN.h"
+    - "custom_components/EHU32/src/TextHandler.h"
+    - "custom_components/EHU32/src/wrapper.h"
+  on_boot:
+    priority: 500
+    then:
+      - lambda: |-
+          run();
+
+external_components:
+  - source: github://alexbilevskiy/esphome@canbus_new_speed
+    components: [ canbus, esp32_can ]
+    refresh: 1h
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -13,8 +29,10 @@ esp32:
       CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
 
 logger:
-  baud_rate: 0
-  level: INFO
+  baud_rate: 115200
+  logs:
+    wireguard: INFO
+    canbus: INFO
 
 api:
   password: ""
@@ -25,9 +43,12 @@ safe_mode:
   disabled: true
 
 wifi:
-  ssid: !secret wifi_hotspot_ssid
-  password: !secret wifi_hotspot_password
-  fast_connect: true
+  networks:
+    - ssid: !secret wifi_hotspot_ssid
+      password: !secret wifi_hotspot_password
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+  fast_connect: false
   power_save_mode: none
   use_address: 10.4.0.4
   output_power: 8.5
@@ -36,62 +57,96 @@ wifi:
 time:
   - platform: sntp
     timezone: Europe/Moscow
+    servers:
+      - time.windows.com
 
 wireguard: !include wg.yaml
 
 web_server:
+  ota: false
+  local: true
+  version: 3
+  log: true
 
 uart:
   - rx_pin: GPIO9
     tx_pin: GPIO10
-    baud_rate: 9600
+    baud_rate: 115200
     id: fs_uart
     debug:
-      direction: BOTH
+      direction: RX
       dummy_receiver: true
       after:
-        delimiter: "\n"
+        delimiter: "\r\n"
       sequence:
-        - lambda: UARTDebug::log_string(direction, bytes);
+        - lambda: |- 
+            UARTDebug::log_string(direction, bytes);
+            char *raw_at = reinterpret_cast<char *>(bytes.data());
+
+            const char *at_start = "+TRACKINFO=";
+            char *found = strstr(raw_at, at_start);
+            if(!found) {
+              return;
+            }
+            const char *no_data = "+TRACKINFO=Not Provided";
+            found = strstr(raw_at, no_data);
+            if(found) {
+              return;
+            }
+            
+            char *next = strtok(raw_at, "=");
+            
+            char *delim = "\xFF";
+
+            next = strtok(NULL, delim);
+            char *title = next;
+            id(track_title).publish_state(title);
+            next = strtok(NULL, delim);
+            char *artist = next;
+            id(track_artist).publish_state(artist);
+            delim = "\r";
+            next = strtok(NULL, delim);
+            char *album = next;
+            id(track_album).publish_state(album);
+            
+            char combined_text[500] = "";
+            strcat(combined_text, artist);
+            strcat(combined_text, " - ");
+            strcat(combined_text, title);
+            
+            ESP_LOGD("TEXT", combined_text);
+            writeTextToDisplay(1, nullptr, combined_text, nullptr);
 
 binary_sensor:
 
-# MCP2551 or TJA1040 should work
-canbus:
-  - platform: esp32_can
-    tx_pin: GPIO6
-    rx_pin: GPIO7
-    can_id: 4
-    bit_rate: 125kbps #must be 95kbps, how to set? https://esphome.io/components/canbus/esp32_can#esp32-can-bit-rate
-    on_frame:
-      - can_id: 0x175
-        then:
-          - lambda: |-
-              if(x.size() > 0) {
-                switch(x[5]) {
-                  case 0x40: id(b_play).press(); break;
-                  case 0x04: id(b_next).press(); break;
-                  case 0x05: id(b_prev).press(); break;
-                }
-              }
-      - can_id: 0x445
-        then:
-          - lambda: |-
-              if(x.size() > 0) {
-                id(sens_temp_out).publish_state((float) x[1]/2-40);
-              }
-      - can_id: 0x500
-        then:
-          - lambda: |-
-              if(x.size() > 0) {
-                id(sens_voltage).publish_state((float) x[1]/8);
-              }
-      - can_id: 0x145
-        then:
-          - lambda: |-
-              if(x.size() > 0) {
-                id(sens_coolant).publish_state((float) x[3]-40);
-              }
+##native esphome canbus works, but conflicts with EHU32 because they both listen can bus with twai_receive
+
+#canbus:
+#  - platform: esp32_can # MCP2551 or TJA1040 should work
+#    rx_queue_len: 40
+#    tx_queue_len: 5
+#    tx_pin: GPIO4
+#    rx_pin: GPIO3
+#    can_id: 4
+#    bit_rate: 95kbps #defined in custom_components
+#    on_frame:
+#      - can_id: 0x206
+#        then:
+#          - lambda: |-
+#              if(x.size() > 0) {
+#                switch(x[5]) {
+#                  case 0x81: id(b_play).press(); break;
+#                  case 0x91: id(b_next).press(); break;
+#                  case 0x92: id(b_prev).press(); break;
+#                }
+#              }
+#      - can_id: 0x201
+#        then:
+#          - lambda: |-
+#              if(x.size() > 0) {
+#                UARTDebug::log_hex(UART_DIRECTION_RX, x, x.size());
+#              }
+
 
 light:
   - platform: binary
@@ -142,32 +197,56 @@ button:
     name: "Reboot"
 
   - platform: template
-    name: "UART test"
+    name: "UART status"
     on_press:
       - uart.write:
           id: fs_uart
           data: "AT+DEVSTAT\r\n"
   - platform: template
-    name: "play"
+    name: "UART trackinfo"
+    on_press:
+      - uart.write:
+          id: fs_uart
+          data: "AT+TRACKINFO\r\n"
+  - platform: template
+    name: "media play"
     id: b_play
     on_press:
       - uart.write:
           id: fs_uart
           data: "AT+PLAYPAUSE\r\n"
   - platform: template
-    name: "next"
+    name: "media next"
     id: b_next
     on_press:
       - uart.write:
           id: fs_uart
           data: "AT+FORWARD\r\n"
   - platform: template
-    name: "prev"
+    name: "media prev"
     id: b_prev
     on_press:
       - uart.write:
           id: fs_uart
           data: "AT+BACKWARD\r\n"
+#  - platform: template
+#    name: "canbus test simple"
+#    on_press:
+#      - canbus.send:
+#          data: !lambda return {0x30, 0x0, 0x7F, 0, 0, 0, 0, 0};
+#          can_id: 0x2C1
+  - platform: template
+    name: "canbus init ehu"
+    on_press:
+      - lambda: |-
+          //moved to on_boot
+          //run();
+  - platform: template
+    name: "canbus test ehu"
+    on_press:
+      - lambda: |-
+          writeTextToDisplay(1, nullptr, "HELLO FROM ESPHOME", nullptr);
+
 
 text_sensor:
   - platform: wifi_info
@@ -193,3 +272,12 @@ text_sensor:
       name: ESP Latest Scan Results
     dns_address:
       name: ESP DNS Address
+  - platform: template
+    name: "track title"
+    id: track_title
+  - platform: template
+    name: "track artist"
+    id: track_artist
+  - platform: template
+    name: "track album"
+    id: track_album
