@@ -33,6 +33,8 @@ packet_transport:
   binary_sensors:
     - id: presence
       broadcast_id: presence
+  providers:
+    - name: sonoff-minir4-04
 
 uart:
   id: ld2410_uart
@@ -109,6 +111,18 @@ binary_sensor:
       name: Still Target
     out_pin_presence_status:
       name: out pin presence status
+  - platform: packet_transport
+    provider: sonoff-minir4-04
+    remote_id: button02
+    name: "sonoff button02"
+    id: sonoff_button02
+    internal: true
+    on_press:
+      then:
+        - light.turn_on: pwm_01
+    on_release:
+      then:
+        - light.turn_off: pwm_01
 
 sensor:
   - platform: ld2410
