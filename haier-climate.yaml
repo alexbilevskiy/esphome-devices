@@ -13,6 +13,9 @@ esp32:
 
 logger:
   baud_rate: 0
+  logs:
+    haier.climate: INFO
+    haier.protocol: INFO
 
 api:
   password: ""
@@ -80,6 +83,10 @@ switch:
       name: Haier display
 
 button:
+  - platform: template
+    name: "Start Sunrise"
+    on_press:
+      - script.execute: sunrise_script
   - platform: restart
     name: "Reboot"
 sensor:
@@ -104,7 +111,31 @@ light:
     restore_mode: ALWAYS_ON
     internal: true
 
+  - platform: cwww
+    id: sunlike
+    name: "Sunlight"
+    icon: "mdi:weather-sunny"
+    cold_white: light_cold
+    warm_white: light_warm
+    cold_white_color_temperature: 5500 K
+    warm_white_color_temperature: 2700 K
+    constant_brightness: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
 output:
+  - id: light_warm
+    platform: ledc
+    pin: GPIO1
+    frequency: 19531Hz
+    min_power: 0.008 #$$\text{min\_power} = (\text{desired\_brightness})^{2.8}$$
+    zero_means_zero: true
+  - id: light_cold
+    platform: ledc
+    pin: GPIO0
+    frequency: 19531Hz
+    min_power: 0.008
+    zero_means_zero: true
+
   - id: indicator_output
     platform: gpio
     pin:
@@ -112,4 +143,31 @@ output:
       ignore_strapping_warning: true
     inverted: true
 
+number:
+  - platform: template
+    name: "Sunrise Duration"
+    id: sunrise_duration
+    min_value: 1
+    max_value: 60
+    initial_value: 30
+    step: 1
+    unit_of_measurement: "min"
+    optimistic: true
+    restore_value: true
 
+script:
+  - id: sunrise_script
+    mode: restart
+    then:
+      - light.control:
+          id: sunlike
+          state: ON
+          brightness: 1%
+          color_temperature: 2700K
+          transition_length: 0s
+      - delay: 5s
+      - light.control:
+          id: sunlike
+          brightness: 100%
+          color_temperature: 4500K
+          transition_length: !lambda "return id(sunrise_duration).state * 60 * 1000;"
