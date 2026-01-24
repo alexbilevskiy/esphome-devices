@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -x
-VERS=2025.9.1
+VERS=2026.1.1
 # -e ESPHOME_DASHBOARD_USE_PING=true
 docker run \
   --name esphome \
