@@ -120,9 +120,9 @@ sensor:
             eff = 1.0;
             if (x > 0) {
               // discharge
-              eff = 1.05;
+              eff = 1.1;
             } else {
-              eff = 0.95;
+              eff = 0.9;
             }
             id(current_capacity) -= x * (5.0 / 3600.0) * eff;  // 5s → Ah
     bus_voltage:
