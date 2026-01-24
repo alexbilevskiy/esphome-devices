@@ -338,8 +338,9 @@ sensor:
           min_value: 10000
           ignore_out_of_range: true
       - calibrate_linear:
-          - 835640 -> 0
-          - 1064652 -> 1
+          - 820343 -> 0
+          - 961461 -> 0.6
+          - 1054114 -> 1
       - sliding_window_moving_average:
           window_size: 5
           send_every: 10
