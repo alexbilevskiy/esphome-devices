@@ -1,0 +1,65 @@
+esphome:
+  name: flower-lamp
+  friendly_name: flower-lamp
+
+esp32:
+  board: lolin_s2_mini
+  variant: esp32s2
+  framework:
+    type: esp-idf
+    version: recommended
+
+logger:
+  baud_rate: 0
+
+api:
+ota:
+  platform: esphome
+safe_mode:
+  disabled: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+one_wire:
+  - platform: gpio
+    pin: GPIO17
+
+button:
+  - platform: restart
+    name: "Reboot"
+
+sensor:
+  - platform: uptime
+    name: Uptime
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+  - platform: internal_temperature
+    name: "Internal Temperature"
+
+  - platform: dallas_temp
+    address: 0x6ec30d490b646128
+    name: "led temp"
+
+light:
+  - platform: monochromatic
+    icon: mdi:led-off
+    output: light_pwm
+    name: "led"
+    id: led_01
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF
+
+output:
+  - id: light_pwm
+    platform: ledc
+    pin: GPIO16
+    frequency: 19531Hz
+
+status_led:
+  pin:
+    number: GPIO15
+    inverted: false
