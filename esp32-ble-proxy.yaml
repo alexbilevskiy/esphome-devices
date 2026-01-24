@@ -43,6 +43,12 @@ uart:
   parity: NONE
   stop_bits: 1
 
+i2c:
+  sda: GPIO19 # red
+  scl: GPIO23 # brown
+  scan: false
+  id: bus_a
+
 ld2410:
   uart_id: ld2410_uart
   id: ld2410_1
@@ -181,6 +187,22 @@ sensor:
         name: g8 still energy
     light:
       name: light
+  - platform: ina2xx_i2c
+    id: ina228
+    model: INA228
+    address: 0x40
+    shunt_resistance: 0.002 ohm
+    max_current: 10 A
+    adc_range: 0
+    update_interval: 15s
+
+    current: "INA228 Current"
+    bus_voltage: "INA228 Bus Voltage"
+    charge: "INA228 Charge"
+    power: "INA228 Power"
+    shunt_voltage: "INA228 Shunt Voltage"
+    temperature: "INA228 Temperature"
+    energy: "INA228 Energy"
   - platform: uptime
     name: Uptime
   - platform: internal_temperature
