@@ -4,6 +4,12 @@ esphome:
   platformio_options:
     board_build.flash_mode: dio
 
+  devices:
+    - id: hvac
+      name: "Air Conditioner"
+    - id: lamp
+      name: "Sun-like lamp"
+
 esp32:
   board: seeed_xiao_esp32c3
   framework:
@@ -18,10 +24,8 @@ logger:
     haier.protocol: INFO
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -44,6 +48,7 @@ one_wire:
 climate:
   - platform: haier
     id: haier_ac
+    device_id: hvac
     protocol: smartair2
     name: Haier AC
     uart_id: ac_port
@@ -78,12 +83,15 @@ climate:
 switch:
   - platform: haier
     health_mode:
+      device_id: hvac
       name: Haier health mode
     display:
+      device_id: hvac
       name: Haier display
 
 button:
   - platform: template
+    device_id: lamp
     name: "Start Sunrise"
     on_press:
       - script.execute: sunrise_script
@@ -94,6 +102,7 @@ sensor:
     address: 0x1500000627452828
     name: "heating"
   - platform: dallas_temp
+    device_id: hvac
     address: 0x3b0000003e59e128
     name: "collant"
   - platform: uptime
@@ -113,6 +122,7 @@ light:
 
   - platform: cwww
     id: sunlike
+    device_id: lamp
     name: "Sunlight"
     icon: "mdi:weather-sunny"
     cold_white: light_cold
@@ -145,6 +155,7 @@ output:
 
 number:
   - platform: template
+    device_id: lamp
     name: "Sunrise Duration"
     id: sunrise_duration
     min_value: 1
