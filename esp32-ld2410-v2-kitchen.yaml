@@ -1,6 +1,10 @@
 esphome:
   name: esp32-ld2410-v2
   friendly_name: "esp32-ld2410-v2-kitchen"
+  devices:
+    - id: presence
+      name: Presence
+
 
 esp32:
   board: wemos_d1_mini32
@@ -11,10 +15,8 @@ logger:
   baud_rate: 0
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -31,8 +33,8 @@ packet_transport:
   platform: udp
   update_interval: 1s
   binary_sensors:
-    - id: presence
-      broadcast_id: presence
+    - id: presence_sensor
+      broadcast_id: presence_sensor
   providers:
     - name: sonoff-minir4-04
 
@@ -80,7 +82,8 @@ binary_sensor:
     ld2410_id: ld2410_1
     has_target:
       name: Presence
-      id: presence
+      device_id: presence
+      id: presence_sensor
       filters:
         # workaround for cyclic reboots of ld2410 (probably it's dying)
         - delayed_off: 30s
@@ -106,10 +109,13 @@ binary_sensor:
 #                - light.turn_off:
 #                    id: pwm_01
     has_moving_target:
+      device_id: presence
       name: Moving Target
     has_still_target:
+      device_id: presence
       name: Still Target
     out_pin_presence_status:
+      device_id: presence
       name: out pin presence status
   - platform: packet_transport
     provider: sonoff-minir4-04
@@ -128,61 +134,85 @@ sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
     moving_distance:
+      device_id: presence
       name: "Moving distance (cm)"
     still_distance:
+      device_id: presence
       name: "Still Distance (cm)"
     moving_energy:
+      device_id: presence
       name: "Move Energy (%)"
     still_energy:
+      device_id: presence
       name: "Still Energy (%)"
     detection_distance:
+      device_id: presence
       name: "Distance Detection (cm)"
     g0:
       move_energy:
+        device_id: presence
         name: g0 move energy
       still_energy:
+        device_id: presence
         name: g0 still energy
     g1:
       move_energy:
+        device_id: presence
         name: g1 move energy
       still_energy:
+        device_id: presence
         name: g1 still energy
     g2:
       move_energy:
+        device_id: presence
         name: g2 move energy
       still_energy:
+        device_id: presence
         name: g2 still energy
     g3:
       move_energy:
+        device_id: presence
         name: g3 move energy
       still_energy:
+        device_id: presence
         name: g3 still energy
     g4:
       move_energy:
+        device_id: presence
         name: g4 move energy
       still_energy:
+        device_id: presence
         name: g4 still energy
     g5:
       move_energy:
+        device_id: presence
         name: g5 move energy
       still_energy:
+        device_id: presence
         name: g5 still energy
     g6:
       move_energy:
+        device_id: presence
         name: g6 move energy
       still_energy:
+        device_id: presence
         name: g6 still energy
     g7:
       move_energy:
+        device_id: presence
         name: g7 move energy
       still_energy:
+        device_id: presence
         name: g7 still energy
     g8:
       move_energy:
+        device_id: presence
         name: g8 move energy
       still_energy:
+        device_id: presence
         name: g8 still energy
     light:
+      device_id: presence
       name: light
   - platform: uptime
     name: Uptime
@@ -193,78 +223,102 @@ switch:
   - platform: ld2410
     ld2410_id: ld2410_1
     engineering_mode:
+      device_id: presence
       name: "engineering mode"
     bluetooth:
+      device_id: presence
       name: "control bluetooth"
-
 
 number:
   - platform: ld2410
     ld2410_id: ld2410_1
     timeout:
+      device_id: presence
       name: timeout
     max_move_distance_gate:
       name: max move distance gate
+      device_id: presence
     max_still_distance_gate:
       name: max still distance gate
+      device_id: presence
     g0:
       move_threshold:
         name: g0 move threshold
+        device_id: presence
       still_threshold:
         name: g0 still threshold
+        device_id: presence
     g1:
       move_threshold:
         name: g1 move threshold
+        device_id: presence
       still_threshold:
         name: g1 still threshold
+        device_id: presence
     g2:
       move_threshold:
         name: g2 move threshold
+        device_id: presence
       still_threshold:
         name: g2 still threshold
+        device_id: presence
     g3:
       move_threshold:
         name: g3 move threshold
+        device_id: presence
       still_threshold:
         name: g3 still threshold
+        device_id: presence
     g4:
       move_threshold:
         name: g4 move threshold
+        device_id: presence
       still_threshold:
         name: g4 still threshold
+        device_id: presence
     g5:
       move_threshold:
         name: g5 move threshold
+        device_id: presence
       still_threshold:
         name: g5 still threshold
+        device_id: presence
     g6:
       move_threshold:
         name: g6 move threshold
+        device_id: presence
       still_threshold:
         name: g6 still threshold
+        device_id: presence
     g7:
       move_threshold:
         name: g7 move threshold
+        device_id: presence
       still_threshold:
         name: g7 still threshold
+        device_id: presence
     g8:
       move_threshold:
         name: g8 move threshold
+        device_id: presence
       still_threshold:
         name: g8 still threshold
+        device_id: presence
     light_threshold:
       name: light threshold
-      
-      
+      device_id: presence
       
 button:
   - platform: ld2410
     ld2410_id: ld2410_1
     factory_reset:
+      device_id: presence
       name: "factory reset"
     restart:
+      device_id: presence
       name: "restart ld2410"
     query_params:
+      device_id: presence
       name: query params
   - platform: restart
     name: Restart
@@ -274,19 +328,25 @@ text_sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
     version:
+      device_id: presence
       name: "firmware version"
     mac_address:
+      device_id: presence
       name: "mac address"
-      
       
 select:
   - platform: ld2410
     ld2410_id: ld2410_1
     distance_resolution:
+      device_id: presence
       name: "distance resolution"
     baud_rate:
+      device_id: presence
       name: "baud rate"
     light_function:
+      device_id: presence
       name: light function
     out_pin_level:
+      device_id: presence
       name: out pin level
+

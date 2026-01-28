@@ -18,10 +18,8 @@ logger:
   level: WARN
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -201,7 +199,7 @@ binary_sensor:
   - platform: packet_transport
     provider: esp32-ld2410-v2
     name: "kitchen presence"
-    remote_id: presence
+    remote_id: presence_sensor
     id: kitchen_presence
     internal: true
   - platform: template
