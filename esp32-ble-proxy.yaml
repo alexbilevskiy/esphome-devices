@@ -2,6 +2,14 @@ esphome:
   name: esp32-ble-proxy
   friendly_name: "esp32-ble-proxy"
 
+  devices:
+    - id: presence
+      name: Presence
+    - id: energy_meter
+      name: Network energy meter
+    - id: remote
+      name: Remote
+
 esp32:
   board: wemos_d1_mini32
   framework:
@@ -10,10 +18,8 @@ esp32:
 logger:
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -55,60 +61,70 @@ ld2410:
 
 binary_sensor:
   - platform: remote_receiver
+    device_id: remote
     name: "433_sw_left"
     filters:
       - delayed_off: 100ms
     rc_switch_raw:
       code: '011111010011011100000001'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_sw_right"
     rc_switch_raw:
       code: '011111010011011100000100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_01"
     rc_switch_raw:
       code: '001010101010000010100100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_02"
     rc_switch_raw:
       code: '110101011111110100110100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_03"
     rc_switch_raw:
       code: '001000000111001001010100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_04"
     rc_switch_raw:
       code: '000101101010101000010100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_05"
     rc_switch_raw:
       code: '011011110100101100100100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_06"
     rc_switch_raw:
       code: '001111000000011100110100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_07"
     rc_switch_raw:
       code: '110010101001110011100100'
   - platform: remote_receiver
+    device_id: remote
     filters:
       - delayed_off: 100ms
     name: "433_08"
@@ -119,73 +135,101 @@ binary_sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
     has_target:
+      device_id: presence
       name: Presence
     has_moving_target:
+      device_id: presence
       name: Moving Target
     has_still_target:
+      device_id: presence
       name: Still Target
     out_pin_presence_status:
+      device_id: presence
       name: out pin presence status
 
 sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
     moving_distance:
+      device_id: presence
       name: "Moving distance (cm)"
     still_distance:
+      device_id: presence
       name: "Still Distance (cm)"
     moving_energy:
+      device_id: presence
       name: "Move Energy (%)"
     still_energy:
+      device_id: presence
       name: "Still Energy (%)"
     detection_distance:
+      device_id: presence
       name: "Distance Detection (cm)"
     g0:
       move_energy:
+        device_id: presence
         name: g0 move energy
       still_energy:
+        device_id: presence
         name: g0 still energy
     g1:
       move_energy:
+        device_id: presence
         name: g1 move energy
       still_energy:
+        device_id: presence
         name: g1 still energy
     g2:
       move_energy:
+        device_id: presence
         name: g2 move energy
       still_energy:
+        device_id: presence
         name: g2 still energy
     g3:
       move_energy:
+        device_id: presence
         name: g3 move energy
       still_energy:
+        device_id: presence
         name: g3 still energy
     g4:
       move_energy:
+        device_id: presence
         name: g4 move energy
       still_energy:
+        device_id: presence
         name: g4 still energy
     g5:
       move_energy:
+        device_id: presence
         name: g5 move energy
       still_energy:
+        device_id: presence
         name: g5 still energy
     g6:
       move_energy:
+        device_id: presence
         name: g6 move energy
       still_energy:
+        device_id: presence
         name: g6 still energy
     g7:
       move_energy:
+        device_id: presence
         name: g7 move energy
       still_energy:
+        device_id: presence
         name: g7 still energy
     g8:
       move_energy:
+        device_id: presence
         name: g8 move energy
       still_energy:
+        device_id: presence
         name: g8 still energy
     light:
+      device_id: presence
       name: light
   - platform: ina2xx_i2c
     id: ina228
@@ -195,14 +239,27 @@ sensor:
     max_current: 10 A
     adc_range: 0
     update_interval: 15s
-
-    current: "INA228 Current"
-    bus_voltage: "INA228 Bus Voltage"
-    charge: "INA228 Charge"
-    power: "INA228 Power"
-    shunt_voltage: "INA228 Shunt Voltage"
-    temperature: "INA228 Temperature"
-    energy: "INA228 Energy"
+    current:
+      name: "INA228 Current"
+      device_id: energy_meter
+    bus_voltage:
+      name: "INA228 Bus Voltage"
+      device_id: energy_meter
+    charge:
+      name: "INA228 Charge"
+      device_id: energy_meter
+    power:
+      name: "INA228 Power"
+      device_id: energy_meter
+    shunt_voltage:
+      name: "INA228 Shunt Voltage"
+      device_id: energy_meter
+    temperature:
+      name: "INA228 Temperature"
+      device_id: energy_meter
+    energy:
+      name: "INA228 Energy"
+      device_id: energy_meter
   - platform: uptime
     name: Uptime
   - platform: internal_temperature
@@ -213,8 +270,10 @@ switch:
   - platform: ld2410
     ld2410_id: ld2410_1
     engineering_mode:
+      device_id: presence
       name: "engineering mode"
     bluetooth:
+      device_id: presence
       name: "control bluetooth"
 
 
@@ -222,58 +281,80 @@ number:
   - platform: ld2410
     ld2410_id: ld2410_1
     timeout:
+      device_id: presence
       name: timeout
     max_move_distance_gate:
       name: max move distance gate
+      device_id: presence
     max_still_distance_gate:
       name: max still distance gate
+      device_id: presence
     g0:
       move_threshold:
         name: g0 move threshold
+        device_id: presence
       still_threshold:
         name: g0 still threshold
+        device_id: presence
     g1:
       move_threshold:
         name: g1 move threshold
+        device_id: presence
       still_threshold:
         name: g1 still threshold
+        device_id: presence
     g2:
       move_threshold:
         name: g2 move threshold
+        device_id: presence
       still_threshold:
         name: g2 still threshold
+        device_id: presence
     g3:
       move_threshold:
         name: g3 move threshold
+        device_id: presence
       still_threshold:
         name: g3 still threshold
+        device_id: presence
     g4:
       move_threshold:
         name: g4 move threshold
+        device_id: presence
       still_threshold:
         name: g4 still threshold
+        device_id: presence
     g5:
       move_threshold:
         name: g5 move threshold
+        device_id: presence
       still_threshold:
         name: g5 still threshold
+        device_id: presence
     g6:
       move_threshold:
         name: g6 move threshold
+        device_id: presence
       still_threshold:
         name: g6 still threshold
+        device_id: presence
     g7:
       move_threshold:
         name: g7 move threshold
+        device_id: presence
       still_threshold:
         name: g7 still threshold
+        device_id: presence
     g8:
       move_threshold:
         name: g8 move threshold
+        device_id: presence
       still_threshold:
         name: g8 still threshold
+        device_id: presence
     light_threshold:
       name: light threshold
+      device_id: presence
       
       
       
@@ -283,10 +364,13 @@ button:
   - platform: ld2410
     ld2410_id: ld2410_1
     factory_reset:
+      device_id: presence
       name: "factory reset"
     restart:
+      device_id: presence
       name: "restart"
     query_params:
+      device_id: presence
       name: query params
       
       
@@ -294,8 +378,10 @@ text_sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
     version:
+      device_id: presence
       name: "firmware version"
     mac_address:
+      device_id: presence
       name: "mac address"
       
       
@@ -303,12 +389,16 @@ select:
   - platform: ld2410
     ld2410_id: ld2410_1
     distance_resolution:
+      device_id: presence
       name: "distance resolution"
     baud_rate:
+      device_id: presence
       name: "baud rate"
     light_function:
+      device_id: presence
       name: light function
     out_pin_level:
+      device_id: presence
       name: out pin level
 
 status_led:
