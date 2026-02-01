@@ -3,6 +3,11 @@ esphome:
   name: fan-custom
   friendly_name: fan-custom
 
+external_components:
+  - source: github://pr#12360
+    components: [pulse_meter]
+    refresh: 1h
+
 esp32:
   board: lolin_s2_mini
   variant: esp32s2
@@ -13,10 +18,8 @@ esp32:
 logger:
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -27,6 +30,10 @@ wifi:
 
 preferences:
   flash_write_interval: 15s
+
+one_wire:
+  - platform: gpio
+    pin: GPIO21
 
 light:
   - platform: binary
@@ -59,10 +66,10 @@ fan:
     restore_mode: RESTORE_DEFAULT_OFF
     preset_modes:
       - "off"
-      - "20%"
-      - "25%"
-      - "30%"
-      - "100%"
+      - "20%" # 590 RPM
+      - "25%" # 890 RPM
+      - "30%" # 1180 RPM
+      - "100%" # 2595 RPM
     on_state:
       - if:
           condition:
@@ -77,34 +84,34 @@ fan:
     on_preset_set:
       - if:
           condition:
-            - lambda: 'return (id(t_fan).preset_mode == "off");'
+            - lambda: 'return (id(t_fan).get_preset_mode() == "off");'
           then:
             - fan.turn_off:
                 id: t_fan
       - if:
           condition:
-            - lambda: 'return (id(t_fan).preset_mode == "20%");'
+            - lambda: 'return (id(t_fan).get_preset_mode() == "20%");'
           then:
             - fan.turn_on:
                 id: t_fan
                 speed: 20
       - if:
           condition:
-            - lambda: 'return (id(t_fan).preset_mode == "25%");'
+            - lambda: 'return (id(t_fan).get_preset_mode() == "25%");'
           then:
             - fan.turn_on:
                 id: t_fan
                 speed: 25
       - if:
           condition:
-            - lambda: 'return (id(t_fan).preset_mode == "30%");'
+            - lambda: 'return (id(t_fan).get_preset_mode() == "30%");'
           then:
             - fan.turn_on:
                 id: t_fan
                 speed: 30
       - if:
           condition:
-            - lambda: 'return (id(t_fan).preset_mode == "100%");'
+            - lambda: 'return (id(t_fan).get_preset_mode() == "100%");'
           then:
             - fan.turn_on:
                 id: t_fan
@@ -117,3 +124,31 @@ sensor:
     name: "Internal Temperature"
   - platform: uptime
     name: Uptime
+
+  - platform: dallas_temp
+    address: 0x8e64fe490b646128
+    name: "Intake temp"
+
+  - platform: pulse_meter
+    pin:
+      number: GPIO17
+      mode:
+        input: true
+        pullup: false
+        pulldown: false
+      inverted: true
+    id: meter_01
+    name: "Fan speed"
+    icon: "mdi:fan"
+    state_class: "measurement"
+    timeout: 15s
+    internal_filter_mode: PULSE
+    internal_filter: 0.001s
+    accuracy_decimals: 0
+    unit_of_measurement: "RPM"
+    filters:
+      - filter_out: nan
+      #      - sliding_window_moving_average:
+      #          window_size: 15
+      #          send_every: 15
+      - throttle_average: 5s
