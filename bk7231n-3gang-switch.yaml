@@ -8,6 +8,7 @@ bk72xx:
     version: dev
 
 logger:
+  baud_rate: 0
 api:
   services:
     - service: play_rtttl
@@ -31,7 +32,7 @@ wifi:
 binary_sensor:
   - platform: gpio
     pin:
-      number: P9
+      number: P7
     id: button_1
     on_state:
       then:
@@ -45,18 +46,11 @@ binary_sensor:
         - light.toggle: light_2
   - platform: gpio
     pin:
-      number: P7
+      number: P9
     id: button_3
     on_state:
       then:
-        - light.toggle: light_3
-  - platform: gpio
-    pin:
-      number: P16
-    id: button_4
-    on_press:
-      then:
-        - rtttl.play: 'MissionImp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d'
+        - light.toggle: led_01
 
 output:
   - platform: gpio
@@ -72,6 +66,10 @@ output:
     frequency: 1000 Hz
     pin: P8
     id: rtttl_out
+  - platform: libretiny_pwm
+    frequency: 19531 Hz
+    pin: P6
+    id: light_pwm
 
 light:
   - platform: binary
@@ -86,6 +84,13 @@ light:
     name: "Right"
     id: light_3
     output: relay_3
+  - platform: monochromatic
+    icon: mdi:led-off
+    output: light_pwm
+    name: "led"
+    id: led_01
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF
 
 rtttl:
   output: rtttl_out
