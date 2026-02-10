@@ -9,7 +9,6 @@ bk72xx:
 
 logger:
 api:
-  password: ""
   services:
     - service: play_rtttl
       variables:
@@ -19,7 +18,6 @@ api:
             rtttl: !lambda 'return song_str;'
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -33,28 +31,28 @@ wifi:
 binary_sensor:
   - platform: gpio
     pin:
-      number: D5
+      number: P9
     id: button_1
     on_state:
       then:
         - light.toggle: light_1
   - platform: gpio
     pin:
-      number: D9
+      number: P15
     id: button_2
     on_state:
       then:
         - light.toggle: light_2
   - platform: gpio
     pin:
-      number: D3
+      number: P7
     id: button_3
     on_state:
       then:
         - light.toggle: light_3
   - platform: gpio
     pin:
-      number: D8
+      number: P16
     id: button_4
     on_press:
       then:
@@ -62,19 +60,19 @@ binary_sensor:
 
 output:
   - platform: gpio
-    pin: D16
+    pin: P24
     id: relay_1
   - platform: gpio
-    pin: D11
+    pin: P17
     id: relay_2
   - platform: gpio
-    pin: D17
+    pin: P26
     id: relay_3
   - platform: libretiny_pwm
     frequency: 1000 Hz
-    pin: D4
+    pin: P8
     id: rtttl_out
-    
+
 light:
   - platform: binary
     name: "Left"
