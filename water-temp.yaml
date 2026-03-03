@@ -28,10 +28,8 @@ logger:
   level: INFO
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -110,7 +108,8 @@ display:
       //it.print(18, 0, id(f10x20), ":");
       //it.strftime(26, 0, id(f10x20), "%M", now);
 
-      it.printf(0, 0, id(f10x20), "%.1f°C", id(temp).state);
+      it.printf(0, 0, id(f10x20), "%.1f°", id(temp).state);
+      it.printf(52, 6, id(fh08), "%.1f°", id(real_temp).state);
       
       it.printf(0, 16, id(fh08), "C: %.1fL, %.1fM³, %.1fL/min", id(cold_water_current_run).state, id(cold_water_usage).state/1000, id(filtered_cold_water_flow_2).state);
       it.printf(0, 27, id(fh08), "H: %.1fL, %.1fM³, %.1fL/min", id(hot_water_current_run).state, id(hot_water_usage).state/1000, id(filtered_hot_water_flow_2).state);
@@ -172,6 +171,12 @@ sensor:
     id: cold_water_flow
     internal: true
 
+  - platform: packet_transport
+    provider: watermeter-02
+    name: "real temp"
+    remote_id: real_temp
+    id: real_temp
+    internal: true
 
   - platform: template
     name: "Cold Water Flow Filtered"
@@ -187,6 +192,8 @@ sensor:
         - lambda: |-
             if (isnan(x)) return;
             if (x < 0 || x > 12) return;
+            id(cold_flow_real_filtered) = x;
+            return;
             
             static std::vector<float> window;
             static int count = 0; // Counter for send_every
@@ -248,6 +255,8 @@ sensor:
         - lambda: |-
             if (isnan(x)) return;
             if (x < 0 || x > 12) return;
+            id(hot_flow_real_filtered) = x;
+            return;
             
             static std::vector<float> window;
             static int count = 0; // Counter for send_every

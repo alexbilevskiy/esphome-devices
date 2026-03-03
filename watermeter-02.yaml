@@ -14,12 +14,20 @@ esphome:
           value: !lambda "return id(meter_02_store) / 1 * 400;"
   on_shutdown:
     then:
-      - globals.set:
-          id: meter_01_store
-          value: !lambda 'return id(meter_01_total).state;'
-      - globals.set:
-          id: meter_02_store
-          value: !lambda 'return id(meter_02_total).state;'
+      - if:
+          condition:
+              - lambda: "return id(cold_total_number).state == 0;"
+          then:
+            - globals.set:
+                id: meter_01_store
+                value: !lambda 'return id(meter_01_total).state;'
+      - if:
+          condition:
+              - lambda: "return id(hot_total_number).state == 0;"
+          then:
+            - globals.set:
+                id: meter_02_store
+                value: !lambda 'return id(meter_02_total).state;'
 
 esp32:
   board: seeed_xiao_esp32c3
@@ -31,6 +39,8 @@ preferences:
   flash_write_interval: 15s
 
 udp:
+packet_transport:
+  platform: udp
   update_interval: 1s
   sensors:
     - id: meter_01
@@ -45,6 +55,8 @@ udp:
       broadcast_id: hot_water_usage
     - id: meter_02_current
       broadcast_id: hot_water_current_run
+    - id: real_temp
+      broadcast_id: real_temp
 
 globals:
   - id: meter_01_store
@@ -69,12 +81,11 @@ globals:
 
 logger:
   baud_rate: 0
+  level: DEBUG
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -84,6 +95,13 @@ wifi:
   fast_connect: true
   output_power: 15dbm
 
+one_wire:
+  - platform: gpio
+    pin:
+      number: GPIO3
+      mode:
+        input: true
+        pullup: false
 
 button:
   - platform: restart
@@ -112,6 +130,50 @@ sensor:
     name: "WiFi Signal Sensor"
     #update_interval: 2s
 
+  - platform: dallas_temp
+    address: 0x000000003e505b28
+    internal: true
+    id: hot_temp
+    update_interval: 1s
+  - platform: template
+    name: "hot"
+    device_class: "temperature"
+    unit_of_measurement: "°C"
+    update_interval: 15s
+    lambda: "return id(hot_temp).state;"
+
+  - platform: dallas_temp
+    address: 0xa20000003beed428
+    internal: true
+    id: cold_temp
+    update_interval: 1s
+  - platform: template
+    name: "cold"
+    device_class: "temperature"
+    unit_of_measurement: "°C"
+    update_interval: 15s
+    lambda: "return id(cold_temp).state;"
+
+  - platform: template
+    name: "real"
+    id: real_temp
+    device_class: "temperature"
+    unit_of_measurement: "°C"
+    internal: true
+    update_interval: 0.1s
+    lambda: |-
+      if (id(meter_01).state == 0 && id(meter_02).state == 0) {
+        return {};
+      }
+      if (id(meter_01).state == 0) {
+        return id(hot_temp).state;
+      }
+      if (id(meter_02).state == 0) {
+        return id(cold_temp).state;
+      }
+      return (id(meter_01).state*id(cold_temp).state + id(meter_02).state*id(hot_temp).state) / (id(meter_01).state + id(meter_02).state);
+    
+
   - platform: pulse_meter
     pin:
       number: GPIO1
@@ -130,6 +192,7 @@ sensor:
     internal_filter: 0.002s
     unit_of_measurement: "L/min"
     filters:
+      - throttle_average: 1s
       - lambda: return (x * 1 / 400);
     total:
       name: "cold water usage"
@@ -140,10 +203,6 @@ sensor:
       unit_of_measurement: "L"
       filters:
         - lambda: return (x * 1 / 400);
-        - sliding_window_moving_average:
-            window_size: 25
-            send_every: 1
-            send_first_at: 1
       on_value:
         - lambda: |-
             if(x > 0) {
@@ -185,6 +244,7 @@ sensor:
     internal_filter: 0.002s
     unit_of_measurement: "L/min"
     filters:
+      - throttle_average: 1s
       - lambda: return (x * 1 / 400);
     total:
       name: "hot water usage"
@@ -195,10 +255,6 @@ sensor:
       unit_of_measurement: "L"
       filters:
         - lambda: return (x * 1 / 400);
-        - sliding_window_moving_average:
-            window_size: 25
-            send_every: 1
-            send_first_at: 1
       on_value:
         - lambda: |-
             if(x > 0) {
@@ -255,3 +311,42 @@ output:
       number: GPIO8
       ignore_strapping_warning: true
     inverted: true
+
+number:
+  - platform: template
+    name: "Set cold water total"
+    id: cold_total_number
+    device_class: water
+    icon: "mdi:water"
+    unit_of_measurement: "L"
+    min_value: 0
+    max_value: 500000
+    mode: box
+    step: 0.0001
+    restore_value: false
+    set_action:
+      then:
+        - lambda: |-
+            id(cold_total_number).publish_state(x);
+        - globals.set:
+            id: meter_01_store
+            value: !lambda 'return x;'
+
+  - platform: template
+    name: "Set hot water total"
+    id: hot_total_number
+    device_class: water
+    icon: "mdi:water"
+    unit_of_measurement: "L"
+    min_value: 0
+    max_value: 500000
+    mode: box
+    step: 0.0001
+    restore_value: false
+    set_action:
+      then:
+        - lambda: |-
+            id(hot_total_number).publish_state(x);
+        - globals.set:
+            id: meter_02_store
+            value: !lambda 'return x;'
