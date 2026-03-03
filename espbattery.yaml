@@ -35,11 +35,9 @@ logger:
   baud_rate: 0
 
 api:
-  password: ""
   reboot_timeout: 0s
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -122,7 +120,7 @@ sensor:
               // discharge
               eff = 1.1;
             } else {
-              eff = 0.9;
+              eff = 0.95;
             }
             id(current_capacity) -= x * (5.0 / 3600.0) * eff;  // 5s → Ah
     bus_voltage:
