@@ -6,3 +6,7 @@
 /secrets.yaml
 /wg.yaml
 .idea
+.build
+.cache
+.esphome
+.platformio
