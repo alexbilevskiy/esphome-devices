@@ -135,15 +135,15 @@ light:
 output:
   - id: light_warm
     platform: ledc
-    pin: GPIO1
+    pin: GPIO0
     frequency: 19531Hz
-    min_power: 0.008 #$$\text{min\_power} = (\text{desired\_brightness})^{2.8}$$
+    min_power: 0.08 # = (actual lowest brightness)^2.8 = (0.18)^2.8 = 0.008
     zero_means_zero: true
   - id: light_cold
     platform: ledc
-    pin: GPIO0
+    pin: GPIO1
     frequency: 19531Hz
-    min_power: 0.008
+    min_power: 0.08
     zero_means_zero: true
 
   - id: indicator_output
