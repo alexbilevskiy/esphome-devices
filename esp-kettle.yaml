@@ -339,6 +339,7 @@ sensor:
           - 820343 -> 0
           - 961461 -> 0.6
           - 1054114 -> 1
+      - offset: -0.16 # new kettle
       - sliding_window_moving_average:
           window_size: 5
           send_every: 10
@@ -547,7 +548,7 @@ script:
             - script.stop: boil_check_unsafe
       - if:
           condition:
-            - lambda: 'return id(temp).state >= 99;'
+            - lambda: 'return id(temp).state >= 101;'
           then:
             - logger.log:
                 format: "turn off boil by temp"
@@ -583,7 +584,7 @@ script:
           condition:
             - lambda: 'return id(temp).state < 99;'
             - lambda: 'return id(presence).state == true;'
-            - lambda: 'return id(volume).state >= 0.55 || id(water_pump).state == true;'
+            - lambda: 'return id(volume).state >= 0.35 || id(water_pump).state == true;'
           then:
             - script.execute: boil_on
           else:
@@ -594,7 +595,7 @@ script:
       - if:
           condition:
             - lambda: 'return id(presence).state == true;'
-            - lambda: 'return id(volume).state < 0.92;'
+            - lambda: 'return id(volume).state < 1.33; //0.92' # new kettle is bigger
           then:
             - lambda: 'id(previous_volume).publish_state(id(volume).state);'
             - script.execute: light_turn_on_pump
@@ -610,7 +611,7 @@ script:
           any:
             - lambda: 'return id(presence).state == false;'
             - lambda: 'return isnan(id(presence).state);'
-            - lambda: 'return id(volume).state >= 0.91;'
+            - lambda: 'return id(volume).state >= 1.32;' # new kettle is bigger
           then:
             - script.execute: water_pump_off
 
