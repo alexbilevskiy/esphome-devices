@@ -3,10 +3,10 @@ esphome:
   name: fan-custom
   friendly_name: fan-custom
 
-external_components:
-  - source: github://pr#12360
-    components: [pulse_meter]
-    refresh: 1h
+# external_components:
+#   - source: github://pr#12360
+#     components: [pulse_meter]
+#     refresh: 1h
 
 esp32:
   board: lolin_s2_mini
