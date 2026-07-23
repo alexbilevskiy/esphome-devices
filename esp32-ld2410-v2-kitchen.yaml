@@ -125,7 +125,9 @@ binary_sensor:
     internal: true
     on_press:
       then:
-        - light.turn_on: pwm_01
+        - light.turn_on:
+            id: pwm_01
+            brightness: 100%
     on_release:
       then:
         - light.turn_off: pwm_01
