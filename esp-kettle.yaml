@@ -320,6 +320,7 @@ sensor:
       - sliding_window_moving_average:
           window_size: 5
           send_every: 5
+      - throttle_average: 1s
 
   - platform: hx711
     name: "Water Volume"
@@ -343,6 +344,7 @@ sensor:
       - sliding_window_moving_average:
           window_size: 5
           send_every: 10
+      - throttle_average: 1s
   - platform: template
     name: "Water Previous volume"
     id: previous_volume
