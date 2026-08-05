@@ -60,6 +60,19 @@ ld2410:
   id: ld2410_1
 
 binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO18
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: Doorbell
+    device_id: presence
+    icon: mdi:bell
+    filters:
+      - delayed_off: 50ms
+
   - platform: remote_receiver
     device_id: remote
     name: "433_sw_left"
