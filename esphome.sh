@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -x
-VERS=2026.7.2
+VERS=2026.8.1
+TTY_FLAG="-it"
+if [ "$1" = "--no-tty" ]; then
+  TTY_FLAG=""
+  shift
+fi
 # -e ESPHOME_DASHBOARD_USE_PING=true
 docker run \
   --name esphome \
@@ -12,5 +17,6 @@ docker run \
   -v "${PWD}/.platformio":/root/.platformio \
   -v "${PWD}/.cache":/cache \
   -v "${PWD}/.build":/build \
-  -it ghcr.io/esphome/esphome:$VERS \
+  $TTY_FLAG \
+  ghcr.io/esphome/esphome:$VERS \
   $*
