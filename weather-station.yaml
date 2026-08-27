@@ -310,33 +310,44 @@ lvgl:
               if (id(temp_inside).has_state() && !isnan(id(temp_inside).state))
                 return str_sprintf("%.1f°", id(temp_inside).state);
               return std::string("N/A");
-        - label:
-            id: temp_outside_label
+        - obj:
+            id: temp_outside_group
             x: -1
             y: 10
             align: TOP_RIGHT
-            text_font: font_reg
-            text_color: color_temp_outside
-            text: !lambda |-
-              int sec = id(esptime).now().second;
-              if (sec % 10 >= 5) {
-                if (id(temp_outside_measured).has_state() && !isnan(id(temp_outside_measured).state))
-                  return str_sprintf("%d°", (int) round(id(temp_outside_measured).state));
-              } else {
-                if (id(temp_outside_provided).has_state()) {
-                  float v = strtof(id(temp_outside_provided).state.c_str(), nullptr);
-                  return str_sprintf("%d°", (int) round(v));
-                }
-              }
-              return std::string("N/A");
-        - image:
-            id: weather_icon
-            x: -16
-            y: 12
-            align: TOP_RIGHT
-            src:
-              mapping: icon_map
-              value: !lambda return id(current_icon).state;
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            pad_all: 0
+            border_width: 0
+            bg_opa: TRANSP
+            layout:
+              type: flex
+              flex_flow: row
+              flex_align_main: start
+              flex_align_cross: center
+              pad_column: 1px
+            widgets:
+              - image:
+                  id: weather_icon
+                  src:
+                    mapping: icon_map
+                    value: !lambda return id(current_icon).state;
+              - label:
+                  id: temp_outside_label
+                  text_font: font_reg
+                  text_color: color_temp_outside
+                  text: !lambda |-
+                    int sec = id(esptime).now().second;
+                    if (sec % 10 >= 5) {
+                      if (id(temp_outside_measured).has_state() && !isnan(id(temp_outside_measured).state))
+                        return str_sprintf("%d°", (int) round(id(temp_outside_measured).state));
+                    } else {
+                      if (id(temp_outside_provided).has_state()) {
+                        float v = strtof(id(temp_outside_provided).state.c_str(), nullptr);
+                        return str_sprintf("%d°", (int) round(v));
+                      }
+                    }
+                    return std::string("N/A");
         - label:
             id: co2_label
             x: 1
@@ -384,48 +395,70 @@ lvgl:
               if (id(wind_speed_real).has_state() && !isnan(id(wind_speed_real).state))
                 return str_sprintf("%s %dm/s", dir, (int) round(id(wind_speed_real).state));
               return std::string(dir);
-        - image:
-            id: forecast_icon_1
-            x: -22
-            y: 22
-            align: TOP_RIGHT
-            src:
-              mapping: icon_map
-              value: !lambda return id(forecast_icon_1_state).state;
-        - label:
-            id: forecast_label_1
+        - obj:
+            id: forecast_group_1
             x: -1
             y: 20
             align: TOP_RIGHT
-            text_font: font_reg
-            text_color: color_forecast
-            text: !lambda |-
-              if (id(forecast_temp_1).has_state() && !isnan(id(forecast_temp_1).state) &&
-                  id(forecast_period_1).has_state())
-                return str_sprintf("%s%d°", id(forecast_period_1).state.c_str(),
-                                   (int) round(id(forecast_temp_1).state));
-              return std::string("N/A");
-        - image:
-            id: forecast_icon_2
-            x: -22
-            y: 32
-            align: TOP_RIGHT
-            src:
-              mapping: icon_map
-              value: !lambda return id(forecast_icon_2_state).state;
-        - label:
-            id: forecast_label_2
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            pad_all: 0
+            border_width: 0
+            bg_opa: TRANSP
+            layout:
+              type: flex
+              flex_flow: row
+              flex_align_main: start
+              flex_align_cross: center
+              pad_column: 1px
+            widgets:
+              - image:
+                  id: forecast_icon_1
+                  src:
+                    mapping: icon_map
+                    value: !lambda return id(forecast_icon_1_state).state;
+              - label:
+                  id: forecast_label_1
+                  text_font: font_reg
+                  text_color: color_forecast
+                  text: !lambda |-
+                    if (id(forecast_temp_1).has_state() && !isnan(id(forecast_temp_1).state) &&
+                        id(forecast_period_1).has_state())
+                      return str_sprintf("%s%d°", id(forecast_period_1).state.c_str(),
+                                         (int) round(id(forecast_temp_1).state));
+                    return std::string("N/A");
+        - obj:
+            id: forecast_group_2
             x: -1
             y: 30
             align: TOP_RIGHT
-            text_font: font_reg
-            text_color: color_forecast
-            text: !lambda |-
-              if (id(forecast_temp_2).has_state() && !isnan(id(forecast_temp_2).state) &&
-                  id(forecast_period_2).has_state())
-                return str_sprintf("%s%d°", id(forecast_period_2).state.c_str(),
-                                   (int) round(id(forecast_temp_2).state));
-              return std::string("N/A");
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            pad_all: 0
+            border_width: 0
+            bg_opa: TRANSP
+            layout:
+              type: flex
+              flex_flow: row
+              flex_align_main: start
+              flex_align_cross: center
+              pad_column: 1px
+            widgets:
+              - image:
+                  id: forecast_icon_2
+                  src:
+                    mapping: icon_map
+                    value: !lambda return id(forecast_icon_2_state).state;
+              - label:
+                  id: forecast_label_2
+                  text_font: font_reg
+                  text_color: color_forecast
+                  text: !lambda |-
+                    if (id(forecast_temp_2).has_state() && !isnan(id(forecast_temp_2).state) &&
+                        id(forecast_period_2).has_state())
+                      return str_sprintf("%s%d°", id(forecast_period_2).state.c_str(),
+                                         (int) round(id(forecast_temp_2).state));
+                    return std::string("N/A");
         - label:
             id: custom_text_line1
             x: 1
@@ -613,27 +646,21 @@ script:
           if (extra_dim) {
             lv_obj_add_flag(id(date_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(temp_inside_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(temp_outside_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(weather_icon), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(temp_outside_group), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(co2_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(humidity_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(wind_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(forecast_label_1), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(forecast_icon_1), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(forecast_label_2), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(forecast_icon_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(forecast_group_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(forecast_group_2), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_remove_flag(id(date_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(temp_inside_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(temp_outside_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(weather_icon), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(temp_outside_group), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(co2_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(humidity_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(wind_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(forecast_label_1), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(forecast_icon_1), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(forecast_label_2), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(forecast_icon_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(forecast_group_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(forecast_group_2), LV_OBJ_FLAG_HIDDEN);
           }
 
 select:
