@@ -64,41 +64,45 @@ font:
 
 color:
   - id: color_clock
-    red: 100%
-    green: 100%
-    blue: 100%
+    red_int: 255
+    green_int: 255
+    blue_int: 255
   - id: color_date
-    red: 31%
-    green: 31%
-    blue: 31%
+    red_int: 80
+    green_int: 80
+    blue_int: 80
   - id: color_temp_inside
-    red: 1%
-    green: 39%
-    blue: 5%
+    red_int: 2
+    green_int: 100
+    blue_int: 12
   - id: color_temp_outside
-    red: 8%
-    green: 43%
-    blue: 43%
+    red_int: 20
+    green_int: 110
+    blue_int: 110
   - id: color_temp_outside_provided
-    red: 4%
-    green: 24%
-    blue: 24%
+    red_int: 10
+    green_int: 60
+    blue_int: 60
   - id: color_co2
-    red: 31%
-    green: 31%
-    blue: 31%
+    red_int: 80
+    green_int: 80
+    blue_int: 80
   - id: color_humidity
-    red: 31%
-    green: 31%
-    blue: 31%
+    red_int: 80
+    green_int: 80
+    blue_int: 80
   - id: color_wind
-    red: 8%
-    green: 24%
-    blue: 43%
+    red_int: 20
+    green_int: 60
+    blue_int: 110
+  - id: color_clock_dim
+    red_int: 40
+    green_int: 40
+    blue_int: 40
   - id: color_forecast
-    red: 24%
-    green: 8%
-    blue: 24%
+    red_int: 60
+    green_int: 20
+    blue_int: 60
 
 image:
   - platform: file
@@ -286,7 +290,8 @@ lvgl:
             x: 1
             y: -4
             text_font: font_clock
-            text_color: color_clock
+            text_color: !lambda |-
+              return id(extra_dim_global) ? id(color_clock_dim) : id(color_clock);
             text:
               time_format: "%H:%M"
               time: esptime
@@ -335,7 +340,9 @@ lvgl:
               - label:
                   id: temp_outside_label
                   text_font: font_reg
-                  text_color: color_temp_outside
+                  text_color: !lambda |-
+                    int sec = id(esptime).now().second;
+                    return (sec % 10 >= 5) ? id(color_temp_outside) : id(color_temp_outside_provided);
                   text: !lambda |-
                     int sec = id(esptime).now().second;
                     if (sec % 10 >= 5) {
@@ -376,7 +383,7 @@ lvgl:
             text_font: font_reg
             text_color: color_wind
             text: !lambda |-
-              if (!id(wind_bearing).has_state())
+              if (!id(wind_bearing).has_state() || !id(wind_speed_weather).has_state())
                 return std::string("N/A");
               int bearing = (int) strtol(id(wind_bearing).state.c_str(), nullptr, 10);
               const char *dir;
@@ -392,9 +399,8 @@ lvgl:
                 case 360: dir = "n"; break;
                 default:  dir = "?";
               }
-              if (id(wind_speed_real).has_state() && !isnan(id(wind_speed_real).state))
-                return str_sprintf("%s %dm/s", dir, (int) round(id(wind_speed_real).state));
-              return std::string(dir);
+              float speed = strtof(id(wind_speed_weather).state.c_str(), nullptr);
+              return str_sprintf("%s %dm/s", dir, (int) round(speed));
         - obj:
             id: forecast_group_1
             x: -1
@@ -548,7 +554,7 @@ interval:
       - lvgl.widget.refresh: forecast_label_1
       - lvgl.widget.refresh: forecast_icon_2
       - lvgl.widget.refresh: forecast_label_2
-  - interval: 50ms
+  - interval: 20ms
     then:
       - lvgl.canvas.fill:
           id: particle_canvas
@@ -637,7 +643,8 @@ script:
             }
           }
 
-          int brightness_255 = (int) (brightness * 2.55f);
+          int brightness_255 = (int) round(brightness * 2.55f);
+          if (brightness == 1) brightness_255 = 1;
           if (brightness_255 < 1) brightness_255 = 1;
           if (brightness_255 > 255) brightness_255 = 255;
           id(matrix).set_brightness(brightness_255);
@@ -770,6 +777,10 @@ text_sensor:
     id: wind_bearing
     entity_id: weather.yandex_weather
     attribute: wind_bearing
+  - platform: homeassistant
+    id: wind_speed_weather
+    entity_id: weather.yandex_weather
+    attribute: wind_speed
   - platform: homeassistant
     id: sun_state
     entity_id: sun.sun
