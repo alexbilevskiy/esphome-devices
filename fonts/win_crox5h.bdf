@@ -8,7 +8,7 @@ COMMENT in both source and binary form provided that the copyright
 COMMENT and these terms are retained. Under no circumstances is the author
 COMMENT responsible for the proper functioning of this software, nor does
 COMMENT the author assume any responsibility for damages incurred with its use.
-FONT -Cronyx-Helvetica-Medium-R-Normal--18-180-75-75-P-98-RAWIN-R
+FONT -Cronyx-Helvetica-Medium-R-Normal--18-180-75-75-P-98-ISO10646-1
 SIZE 18 96 96
 FONTBOUNDINGBOX 24 29 0 -6
 STARTPROPERTIES 19
@@ -24,8 +24,8 @@ SLANT "R"
 SETWIDTH_NAME "Normal"
 ADD_STYLE_NAME ""
 AVERAGE_WIDTH 98
-CHARSET_REGISTRY "RAWIN"
-CHARSET_ENCODING "R"
+CHARSET_REGISTRY "ISO10646"
+CHARSET_ENCODING "1"
 PIXEL_SIZE 18
 POINT_SIZE 180
 RESOLUTION_X 75
