@@ -86,6 +86,10 @@ color:
     red: 8%
     green: 24%
     blue: 43%
+  - id: color_forecast
+    red: 24%
+    green: 8%
+    blue: 24%
 
 image:
   - platform: file
@@ -294,7 +298,7 @@ lvgl:
             text_font: font_reg
             text_color: color_temp_inside
             text: !lambda |-
-              if (id(temp_inside).has_state())
+              if (id(temp_inside).has_state() && !isnan(id(temp_inside).state))
                 return str_sprintf("%.1f°", id(temp_inside).state);
               return std::string("N/A");
         - label:
@@ -307,7 +311,7 @@ lvgl:
             text: !lambda |-
               int sec = id(esptime).now().second;
               if (sec % 10 >= 5) {
-                if (id(temp_outside_measured).has_state())
+                if (id(temp_outside_measured).has_state() && !isnan(id(temp_outside_measured).state))
                   return str_sprintf("%d°", (int) round(id(temp_outside_measured).state));
               } else {
                 if (id(temp_outside_provided).has_state()) {
@@ -331,7 +335,7 @@ lvgl:
             text_font: font_reg
             text_color: color_co2
             text: !lambda |-
-              if (id(co2).has_state())
+              if (id(co2).has_state() && !isnan(id(co2).state))
                 return str_sprintf("%dppm", (int) id(co2).state);
               return std::string("N/A");
         - label:
@@ -341,7 +345,7 @@ lvgl:
             text_font: font_reg
             text_color: color_humidity
             text: !lambda |-
-              if (id(humidity).has_state())
+              if (id(humidity).has_state() && !isnan(id(humidity).state))
                 return str_sprintf("%d%%", (int) round(id(humidity).state));
               return std::string("N/A");
         - label:
@@ -368,9 +372,51 @@ lvgl:
                 case 360: dir = "n"; break;
                 default:  dir = "?";
               }
-              if (id(wind_speed_real).has_state())
+              if (id(wind_speed_real).has_state() && !isnan(id(wind_speed_real).state))
                 return str_sprintf("%s %dm/s", dir, (int) round(id(wind_speed_real).state));
               return std::string(dir);
+        - image:
+            id: forecast_icon_1
+            x: -1
+            y: 42
+            align: TOP_RIGHT
+            src:
+              mapping: icon_map
+              value: !lambda return id(forecast_icon_1_state).state;
+        - label:
+            id: forecast_label_1
+            x: -10
+            y: 40
+            align: TOP_RIGHT
+            text_font: font_reg
+            text_color: color_forecast
+            text: !lambda |-
+              if (id(forecast_temp_1).has_state() && !isnan(id(forecast_temp_1).state) &&
+                  id(forecast_period_1).has_state())
+                return str_sprintf("%s%d°", id(forecast_period_1).state.c_str(),
+                                   (int) round(id(forecast_temp_1).state));
+              return std::string("N/A");
+        - image:
+            id: forecast_icon_2
+            x: -1
+            y: 52
+            align: TOP_RIGHT
+            src:
+              mapping: icon_map
+              value: !lambda return id(forecast_icon_2_state).state;
+        - label:
+            id: forecast_label_2
+            x: -10
+            y: 50
+            align: TOP_RIGHT
+            text_font: font_reg
+            text_color: color_forecast
+            text: !lambda |-
+              if (id(forecast_temp_2).has_state() && !isnan(id(forecast_temp_2).state) &&
+                  id(forecast_period_2).has_state())
+                return str_sprintf("%s%d°", id(forecast_period_2).state.c_str(),
+                                   (int) round(id(forecast_temp_2).state));
+              return std::string("N/A");
         - canvas:
             id: particle_canvas
             x: 0
@@ -395,6 +441,10 @@ interval:
       - lvgl.widget.refresh: co2_label
       - lvgl.widget.refresh: humidity_label
       - lvgl.widget.refresh: wind_label
+      - lvgl.widget.refresh: forecast_icon_1
+      - lvgl.widget.refresh: forecast_label_1
+      - lvgl.widget.refresh: forecast_icon_2
+      - lvgl.widget.refresh: forecast_label_2
   - interval: 50ms
     then:
       - lvgl.canvas.fill:
@@ -497,6 +547,10 @@ script:
             lv_obj_add_flag(id(co2_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(humidity_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(wind_label), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(forecast_label_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(forecast_icon_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(forecast_label_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(forecast_icon_2), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_remove_flag(id(date_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(temp_inside_label), LV_OBJ_FLAG_HIDDEN);
@@ -505,6 +559,10 @@ script:
             lv_obj_remove_flag(id(co2_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(humidity_label), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(wind_label), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(forecast_label_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(forecast_icon_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(forecast_label_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(id(forecast_icon_2), LV_OBJ_FLAG_HIDDEN);
           }
 
 select:
@@ -572,19 +630,25 @@ sensor:
     entity_id: sensor.precipitation_type
     on_value:
       then:
-        - lambda: id(ws).set_precip_type((int) x);
+        - lambda: if (!isnan(x)) id(ws).set_precip_type((int) x);
   - platform: homeassistant
     id: precip_strength
     entity_id: sensor.precipitation_strength
     on_value:
       then:
-        - lambda: id(ws).set_precip_strength(x);
+        - lambda: if (!isnan(x)) id(ws).set_precip_strength(x);
   - platform: homeassistant
     id: wind_speed_real
     entity_id: sensor.wind_speed
     on_value:
       then:
-        - lambda: id(ws).set_wind_speed_real((int) round(x));
+        - lambda: if (!isnan(x)) id(ws).set_wind_speed_real((int) round(x));
+  - platform: homeassistant
+    id: forecast_temp_1
+    entity_id: sensor.forecast_temp_1
+  - platform: homeassistant
+    id: forecast_temp_2
+    entity_id: sensor.forecast_temp_2
 
 text_sensor:
   - platform: homeassistant
@@ -627,6 +691,18 @@ text_sensor:
     on_value:
       then:
         - lambda: id(ws).set_moon_setting(x);
+  - platform: homeassistant
+    id: forecast_period_1
+    entity_id: sensor.forecast_period_1
+  - platform: homeassistant
+    id: forecast_period_2
+    entity_id: sensor.forecast_period_2
+  - platform: homeassistant
+    id: forecast_icon_1_state
+    entity_id: sensor.forecast_icon_1
+  - platform: homeassistant
+    id: forecast_icon_2_state
+    entity_id: sensor.forecast_icon_2
 
 status_led:
   pin:
