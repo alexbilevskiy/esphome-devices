@@ -37,9 +37,13 @@ wifi:
   post_connect_roaming: false
   power_save_mode: none
 
+globals:
+  - id: extra_dim_global
+    type: bool
+    initial_value: 'false'
 
 time:
-  - platform: sntp
+  - platform: homeassistant
     id: esptime
     timezone: Europe/Moscow
 
@@ -47,11 +51,16 @@ font:
   - file: "fonts/win_crox5h.bdf"
     id: font_clock
     size: 18
-    # glyphs: ['0','1','2','3','4','5','6','7','8','9',':']
   - file: "fonts/helvR08.bdf"
     id: font_reg
     size: 8
-    # glyphs: ['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','/','°','.','-','%',' ']
+  - file: "fonts/b10.bdf"
+    id: font_small
+    size: 10
+    glyphsets:
+      - GF_Latin_Core
+      - GF_Greek_Core
+      - GF_Cyrillic_Core
 
 color:
   - id: color_clock
@@ -275,7 +284,7 @@ lvgl:
         - label:
             id: clock_label
             x: 1
-            y: 0
+            y: -4
             text_font: font_clock
             text_color: color_clock
             text:
@@ -322,7 +331,7 @@ lvgl:
               return std::string("N/A");
         - image:
             id: weather_icon
-            x: -20
+            x: -16
             y: 12
             align: TOP_RIGHT
             src:
@@ -377,16 +386,16 @@ lvgl:
               return std::string(dir);
         - image:
             id: forecast_icon_1
-            x: -1
-            y: 42
+            x: -22
+            y: 22
             align: TOP_RIGHT
             src:
               mapping: icon_map
               value: !lambda return id(forecast_icon_1_state).state;
         - label:
             id: forecast_label_1
-            x: -10
-            y: 40
+            x: -1
+            y: 20
             align: TOP_RIGHT
             text_font: font_reg
             text_color: color_forecast
@@ -398,16 +407,16 @@ lvgl:
               return std::string("N/A");
         - image:
             id: forecast_icon_2
-            x: -1
-            y: 52
+            x: -22
+            y: 32
             align: TOP_RIGHT
             src:
               mapping: icon_map
               value: !lambda return id(forecast_icon_2_state).state;
         - label:
             id: forecast_label_2
-            x: -10
-            y: 50
+            x: -1
+            y: 30
             align: TOP_RIGHT
             text_font: font_reg
             text_color: color_forecast
@@ -417,6 +426,20 @@ lvgl:
                 return str_sprintf("%s%d°", id(forecast_period_2).state.c_str(),
                                    (int) round(id(forecast_temp_2).state));
               return std::string("N/A");
+        - label:
+            id: custom_text_line1
+            x: 1
+            y: 49
+            text_font: font_small
+            text_color: color_date
+            text: ""
+        - label:
+            id: custom_text_line2
+            x: 1
+            y: 54
+            text_font: font_small
+            text_color: color_date
+            text: ""
         - canvas:
             id: particle_canvas
             x: 0
@@ -434,6 +457,53 @@ interval:
       - lvgl.widget.refresh: clock_label
       - lvgl.widget.refresh: date_label
       - lvgl.widget.refresh: temp_outside_label
+      - lambda: |-
+          std::string text = id(custom_text_input).state;
+          if (text.empty() || id(extra_dim_global)) {
+            lv_label_set_text(id(custom_text_line1), "");
+            lv_label_set_text(id(custom_text_line2), "");
+            return;
+          }
+          const int max_chars = 25;
+          int char_count = 0;
+          for (size_t i = 0; i < text.length();) {
+            uint8_t c = text[i];
+            if (c < 0x80) i += 1;
+            else if ((c & 0xE0) == 0xC0) i += 2;
+            else if ((c & 0xF0) == 0xE0) i += 3;
+            else if ((c & 0xF8) == 0xF0) i += 4;
+            else i += 1;
+            char_count++;
+          }
+          if (char_count <= max_chars) {
+            lv_label_set_text(id(custom_text_line1), text.c_str());
+            lv_label_set_text(id(custom_text_line2), "");
+          } else {
+            int char_idx = 0;
+            int cut_byte = 0;
+            int last_space_byte = 0;
+            for (size_t i = 0; i < text.length() && char_idx <= max_chars;) {
+              uint8_t c = text[i];
+              size_t char_len;
+              if (c < 0x80) char_len = 1;
+              else if ((c & 0xE0) == 0xC0) char_len = 2;
+              else if ((c & 0xF0) == 0xE0) char_len = 3;
+              else if ((c & 0xF8) == 0xF0) char_len = 4;
+              else char_len = 1;
+              if (text[i] == ' ') last_space_byte = i;
+              i += char_len;
+              char_idx++;
+              cut_byte = i;
+            }
+            int split_byte = last_space_byte > 0 ? last_space_byte : cut_byte;
+            if (last_space_byte > 0) {
+              lv_label_set_text(id(custom_text_line1), text.substr(0, split_byte).c_str());
+              lv_label_set_text(id(custom_text_line2), text.substr(split_byte + 1).c_str());
+            } else {
+              lv_label_set_text(id(custom_text_line1), text.substr(0, split_byte).c_str());
+              lv_label_set_text(id(custom_text_line2), text.substr(split_byte).c_str());
+            }
+          }
   - interval: 5s
     then:
       - lvgl.widget.refresh: weather_icon
@@ -538,6 +608,7 @@ script:
           if (brightness_255 < 1) brightness_255 = 1;
           if (brightness_255 > 255) brightness_255 = 255;
           id(matrix).set_brightness(brightness_255);
+          id(extra_dim_global) = extra_dim;
 
           if (extra_dim) {
             lv_obj_add_flag(id(date_label), LV_OBJ_FLAG_HIDDEN);
@@ -609,6 +680,16 @@ button:
   - platform: restart
     name: Restart
     entity_category: diagnostic
+
+text:
+  - platform: template
+    name: "Custom text"
+    id: custom_text_input
+    mode: text
+    optimistic: true
+    max_length: 150
+    initial_value: ""
+    restore_value: true
 
 sensor:
   - platform: uptime
