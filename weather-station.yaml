@@ -36,6 +36,7 @@ wifi:
   fast_connect: true
   post_connect_roaming: false
   power_save_mode: none
+  output_power: 8.5dbm
 
 globals:
   - id: extra_dim_global
@@ -603,6 +604,7 @@ light:
     pin: GPIO48
     num_leds: 1
     name: "RGB Led"
+    default_transition_length: 0s
   # - platform: binary
   #   id: indicator_light_rx
   #   name: "Indicator RX"
@@ -612,7 +614,7 @@ light:
     id: indicator_light_tx
     name: "Indicator TX"
     output: indicator_output_tx
-    restore_mode: ALWAYS_ON
+    restore_mode: ALWAYS_OFF
 
 script:
   - id: update_brightness
@@ -723,9 +725,12 @@ text:
     optimistic: true
     max_length: 150
     initial_value: ""
-    restore_value: true
+    restore_value: false
 
 sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    #update_interval: 15s
   - platform: uptime
     name: Uptime
   - platform: homeassistant
@@ -826,4 +831,4 @@ text_sensor:
 status_led:
   pin:
     number: GPIO44
-    inverted: false
+    inverted: true
