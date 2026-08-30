@@ -38,14 +38,14 @@ This split keeps the component LVGL-agnostic (no UI calls in C++) while allowing
 
 ### Rendering pipeline
 
-- LVGL refreshes the display at 16ms intervals (~60 FPS) via the HUB75 display component.
-- A 20ms interval (50 FPS) clears and redraws the particle canvas from `get_pixels()`.
-- Labels are refreshed on two intervals: 1s for time-sensitive widgets (clock, date, temp outside blinking), 5s for the rest.
+- LVGL refreshes the display at 16ms intervals (~60 FPS) via the HUB75 display component. Actual refresh rate is measured via `on_draw_end` trigger (`LV_EVENT_REFR_READY`).
+- A 20ms interval (50 FPS) clears and redraws the particle canvas from `get_pixels()`. Actual execution rate is measured via EMA of inter-interval delta.
+- Labels are refreshed on two intervals: 1s for time-sensitive widgets (clock, date, temp outside blinking, FPS display), 5s for the rest.
 - A 30s interval updates brightness based on time-of-day and sun position.
 
 ### Display configuration
 
-The HUB75 display is configured with `update_interval: never` and `auto_clear_enabled: false` — LVGL manages all screen updates. Double buffering is disabled to save memory; the 25% LVGL buffer in octal PSRAM is sufficient.
+The HUB75 display is configured with `update_interval: never` and `auto_clear_enabled: false` — LVGL manages all screen updates. `buffer_size: 100%` ensures the LVGL draw buffer holds a complete frame (needed by the `lvgl_screenshot` component). The 100% buffer in octal PSRAM is sufficient.
 
 ## File Structure
 
@@ -93,7 +93,7 @@ The HUB75 display is configured with `update_interval: never` and `auto_clear_en
 63 └─────────────────────────────────────────────────────────┘
 ```
 
-Sun and moon indicators travel around the full panel border (analog clock style), overlapping all rows.
+Sun and moon indicators travel along the screen perimeter — upper half when above horizon, lower half when below. Two dim horizon pixels mark the left and right edges of the horizon line (y = 32).
 
 ### Widget positions
 
@@ -110,6 +110,7 @@ Sun and moon indicators travel around the full panel border (analog clock style)
 | wind_label | font_reg | -1 | 40 | TOP_RIGHT | `ne 5m/s` |
 | custom_text_line1 | font_small (10px) | 1 | 49 | TOP_LEFT | word-wrapped text |
 | custom_text_line2 | font_small | 1 | 54 | TOP_LEFT | word-wrapped text |
+| fps_label | font_small (10px) | 1 | 49 | TOP_LEFT | `L:60 I:50` (replaces custom text when FPS mode on) |
 | particle_canvas | — | 0 | 0 | — | 128x64 transparent overlay |
 
 Right-aligned icon+label pairs use LVGL flex containers (`width: SIZE_CONTENT`, `flex_flow: row`, `pad_column: 1px`) that auto-pack the icon to the left of the label with a 1px gap. When label text changes width, the container auto-resizes and stays anchored to the right edge.
@@ -174,6 +175,19 @@ User-defined text displayed at the bottom of the panel in the monospace small fo
 
 Input via a template text entity (`Custom text`) exposed to Home Assistant. Text is cleared (not hidden) when empty or in extra-dim mode to avoid redraw artifacts.
 
+### FPS Monitor
+
+Real-time FPS display showing two metrics, toggled via a `Show FPS` switch entity exposed to Home Assistant:
+
+| Metric | Label | Source | Measurement |
+|--------|-------|--------|-------------|
+| LVGL refresh rate | `L` | `on_draw_end` trigger (`LV_EVENT_REFR_READY`) | Counts complete refresh cycles per second |
+| Interval execution rate | `I` | 20ms canvas redraw interval | EMA of `1000/delta_ms` between interval firings |
+
+When FPS mode is on, the custom text widgets are hidden and replaced by the FPS label at the same position (y=49). FPS is also logged at INFO level every second. FPS label remains visible in extra-dim mode.
+
+The LVGL FPS reflects the actual display refresh rate (driven by the 16ms LVGL refresh timer and ESPHome loop speed). The interval FPS shows the real execution rate of the 20ms particle canvas redraw, revealing delays from WiFi, API traffic, or particle system load.
+
 ### Precipitation Particles
 
 Animated particle system rendered on a transparent full-screen canvas overlay. Supports three precipitation types:
@@ -203,15 +217,29 @@ Canvas updates at 20ms (50 FPS). The component's `loop()` updates particle state
 
 ### Sun/Moon Arc
 
-Sun and moon position indicators travel around the full panel border, like an analog clock. Shows:
-- **Sun**: yellow pixel (255, 220, 0) + up to 2 border neighbors
-- **Moon**: light blue pixel (180, 200, 255) + up to 2 border neighbors
-- **Sunrise/sunset marks**: 2 pixels at arc boundaries, orange (200, 60, 0)
-- **Moonrise/moonset marks**: 2 pixels at arc boundaries, gray (130, 130, 160)
+Sun and moon position indicators travel along the **screen perimeter** — the projection of their circular sky path onto the rectangle edges. The middle of the screen (y = panel_height/2) represents the horizon.
 
-Position is calculated from rise/set times (from HA `sun.sun` attributes and moon sensors). The arc length is proportional to the actual day/night length — a short winter day produces a short sun arc.
+**Above horizon (day for sun, night for moon):**
+- The body travels along the **upper half perimeter**, **left to right**
+- Path: `(0, horizon) → (0, 0) → (panel_width-1, 0) → (panel_width-1, horizon)`
+- Progress (0.0–1.0) = `(now - rise) / (set - rise)`, mapped linearly along the perimeter path
+
+**Below horizon (night for sun, day for moon):**
+- The body travels along the **lower half perimeter**, **right to left** (mirrored, visually continuing the arc)
+- Path: `(panel_width-1, horizon) → (panel_width-1, panel_height-1) → (0, panel_height-1) → (0, horizon)`
+- Progress = `(now - set) / (86400 - day_length)`, mapped linearly along the perimeter path
+
+Transitions are smooth: sunrise/moonrise at `(0, horizon)`, sunset/moonset at `(panel_width-1, horizon)`.
+
+**Horizon indicators:** Two dim gray (40, 40, 40) pixels at the left and right edges of the horizon line (y = panel_height/2), always visible.
+
+**Body rendering:** Each body (sun/moon) is drawn as a main pixel plus up to 2 adjacent neighbors for a thicker indicator:
+- Sun: yellow (255, 220, 0)
+- Moon: light blue (180, 200, 255)
 
 **Time handling:** ISO 8601 datetime strings from HA are parsed to UTC epoch seconds using a manual implementation (Howard Hinnant's days-from-civil algorithm). `time(nullptr)` also returns UTC epoch, so the difference is timezone-correct. No `mktime`/`timegm` used (portability issues on ESP-IDF).
+
+The previous border-perimeter arc model (analog-clock style around the full panel border) is preserved in `update_sky_border_()` but not called.
 
 ### Auto-Brightness
 
@@ -289,6 +317,7 @@ All template sensors should have availability templates guarding against missing
 |--------|------|---------|
 | Brightness | light (monochromatic) | On/off + brightness slider. OFF = auto mode. |
 | Custom text | text | User text input (up to 150 chars) |
+| Show FPS | switch | Toggle FPS overlay (replaces custom text) |
 | Simulate precipitation | select | Options: "", "snow", "rain", "wet_snow" |
 | Simulated precip strength | number (slider) | 0.0-2.0, step 0.5 |
 | Simulated wind speed | number (slider) | 0.0-30.0, step 1.0 |
@@ -354,7 +383,7 @@ void set_moon_setting(const std::string &v);
 ### loop() method
 
 Called by ESPHome's main loop (every few ms). Clears the pixel vector, then:
-1. `update_sky_()` — calculates sun/moon positions and appends pixels to the vector
+1. `update_sky_()` — calculates sun/moon positions using sine-curve sky model and appends pixels to the vector (including horizon indicators)
 2. `update_particles_()` — updates particle state (spawn, movement, removal) and appends pixels to the vector
 
 The YAML interval lambda (20ms) reads `get_pixels()` and draws each pixel via `lv_canvas_set_px()`. This keeps the component LVGL-agnostic.
@@ -364,7 +393,8 @@ The YAML interval lambda (20ms) reads `get_pixels()` and draws each pixel via `l
 - **Spawn timing**: Uses a float `spawn_timer_` that advances by `to_spawn * interval_ms` regardless of how many particles actually spawned. Prevents debt accumulation when particles are at max capacity.
 - **Independent particle timers**: Each particle's timer advances by `distance * delay_ms` rather than snapping to `now`. Prevents lockstep/wave patterns caused by variable `loop()` call frequency.
 - **ISO datetime parsing**: Manual implementation using Howard Hinnant's days-from-civil algorithm. Parses timezone offsets (`+03:00` or `+0300`). Avoids `mktime`/`timegm` portability issues on ESP-IDF. `time(nullptr)` returns UTC epoch (timezone setting only affects `localtime()`/`strftime()`, not `time()`).
-- **Border arc math**: `angle_to_border_()` converts an angle to (x, y) coordinates on the panel border using trigonometry. `border_neighbors_()` finds up to 2 adjacent border pixels for thicker indicator rendering.
+- **Sky position model**: `sky_position_()` converts rise/set times and current time to (x, y) coordinates on the screen perimeter. The upper half perimeter (left edge up → top edge → right edge down) is used when above horizon; the lower half perimeter (right edge down → bottom edge → left edge up) is used when below, traversed right-to-left. Rise time is normalized to the most recent occurrence to handle HA's "next" events correctly. `sky_neighbors_()` finds up to 2 adjacent pixels for thicker body rendering.
+- **Previous arc model**: `update_sky_border_()` preserves the old border-perimeter analog-clock arc with `angle_to_border_()` and `border_neighbors_()`. Not called but retained for reference.
 
 ## Colors
 
@@ -390,4 +420,4 @@ Colors use raw 0-255 integer values (`red_int`/`green_int`/`blue_int`) to match 
 
 ## Debugging
 
-The `lvgl_screenshot` component serves the LVGL canvas over HTTP on port 8080, useful for remote debugging without physical access to the panel.
+The `lvgl_screenshot` component serves the LVGL canvas over HTTP on port 8080 as a PNG image, useful for remote debugging without physical access to the panel.

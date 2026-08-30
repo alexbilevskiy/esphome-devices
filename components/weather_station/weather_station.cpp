@@ -101,7 +101,142 @@ void WeatherStation::border_neighbors_(int x, int y, int out[][2], int &count) {
   }
 }
 
-void WeatherStation::update_sky_() {
+void WeatherStation::sky_position_(int64_t rise, int64_t set, int64_t now, int &x, int &y, bool &visible) {
+  // rise and set are "next" events from HA (may be on different days)
+  // Normalize to find the current up/down cycle
+  int64_t up_len;
+  if (set > rise) {
+    up_len = set - rise;
+  } else {
+    up_len = set - rise + 86400;
+  }
+  int64_t down_len = 86400 - up_len;
+  if (down_len < 0)
+    down_len = 0;
+
+  // Normalize rise to most recent occurrence at or before now
+  int64_t recent_rise = (rise <= now) ? rise : rise - 86400;
+  int64_t recent_set = recent_rise + up_len;
+
+  int horizon = this->panel_h_ / 2;
+  int w = this->panel_w_;
+  int h = this->panel_h_;
+
+  float progress = 0.0f;
+
+  if (recent_rise <= now && now <= recent_set) {
+    // Above horizon: upper half perimeter, left to right
+    progress = (up_len > 0) ? (float) (now - recent_rise) / (float) up_len : 0.0f;
+    visible = true;
+  } else {
+    // Below horizon: lower half perimeter, right to left
+    int64_t night_start;
+    if (now > recent_set) {
+      night_start = recent_set;
+    } else {
+      night_start = recent_set - 86400;
+    }
+    int64_t elapsed = now - night_start;
+    if (elapsed < 0)
+      elapsed = 0;
+    progress = (down_len > 0) ? (float) elapsed / (float) down_len : 0.0f;
+    visible = false;
+  }
+
+  if (progress < 0.0f) progress = 0.0f;
+  if (progress > 1.0f) progress = 1.0f;
+
+  // Map progress to a position on the upper or lower half of the screen perimeter
+  // Upper half path: (0,horizon) → (0,0) → (w-1,0) → (w-1,horizon)
+  // Lower half path: (w-1,horizon) → (w-1,h-1) → (0,h-1) → (0,horizon)
+  int seg1_len = horizon;         // vertical edge
+  int seg2_len = w - 1;           // horizontal edge
+  int seg3_len = horizon;         // vertical edge
+  int total = seg1_len + seg2_len + seg3_len;
+  float pos = progress * (float) total;
+
+  if (visible) {
+    // Upper half: left-up → top-right → right-down
+    if (pos <= seg1_len) {
+      float t = pos / (float) seg1_len;
+      x = 0;
+      y = (int) std::round((float) horizon - t * (float) horizon);
+    } else if (pos <= seg1_len + seg2_len) {
+      float t = (pos - seg1_len) / (float) seg2_len;
+      x = (int) std::round(t * (float) (w - 1));
+      y = 0;
+    } else {
+      float t = (pos - seg1_len - seg2_len) / (float) seg3_len;
+      x = w - 1;
+      y = (int) std::round(t * (float) horizon);
+    }
+  } else {
+    // Lower half: right-down → bottom-left → left-up
+    if (pos <= seg1_len) {
+      float t = pos / (float) seg1_len;
+      x = w - 1;
+      y = (int) std::round((float) horizon + t * (float) (h - 1 - horizon));
+    } else if (pos <= seg1_len + seg2_len) {
+      float t = (pos - seg1_len) / (float) seg2_len;
+      x = (int) std::round((float) (w - 1) - t * (float) (w - 1));
+      y = h - 1;
+    } else {
+      float t = (pos - seg1_len - seg2_len) / (float) seg3_len;
+      x = 0;
+      y = (int) std::round((float) (h - 1) - t * (float) (h - 1 - horizon));
+    }
+  }
+
+  if (x < 0) x = 0;
+  if (x >= w) x = w - 1;
+  if (y < 0) y = 0;
+  if (y >= h) y = h - 1;
+}
+
+void WeatherStation::sky_neighbors_(int x, int y, int out[][2], int &count) {
+  // Prefer neighbors that are also on the screen perimeter (edge pixels),
+  // so the body forms a line along the edge rather than a diagonal.
+  count = 0;
+  int candidates[4][2] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
+  // First pass: neighbors that are on the perimeter
+  for (int i = 0; i < 4; i++) {
+    int nx = candidates[i][0];
+    int ny = candidates[i][1];
+    if (nx < 0 || nx >= this->panel_w_ || ny < 0 || ny >= this->panel_h_)
+      continue;
+    if (nx == 0 || nx == this->panel_w_ - 1 || ny == 0 || ny == this->panel_h_ - 1) {
+      if (count < 2) {
+        out[count][0] = nx;
+        out[count][1] = ny;
+        count++;
+      }
+    }
+  }
+  // Second pass: fill remaining slots with any in-bounds neighbor (for corner cases)
+  if (count < 2) {
+    for (int i = 0; i < 4; i++) {
+      int nx = candidates[i][0];
+      int ny = candidates[i][1];
+      if (nx < 0 || nx >= this->panel_w_ || ny < 0 || ny >= this->panel_h_)
+        continue;
+      bool already = false;
+      for (int j = 0; j < count; j++) {
+        if (out[j][0] == nx && out[j][1] == ny) {
+          already = true;
+          break;
+        }
+      }
+      if (!already && count < 2) {
+        out[count][0] = nx;
+        out[count][1] = ny;
+        count++;
+      }
+    }
+  }
+}
+
+void WeatherStation::update_sky_border_() {
+  // Previous border-perimeter arc model (preserved, not called)
   // Sun
   if (!this->sun_rising_.empty() && !this->sun_setting_.empty()) {
     int64_t sr = this->parse_iso_datetime_(this->sun_rising_);
@@ -188,6 +323,60 @@ void WeatherStation::update_sky_() {
       this->border_neighbors_(mx, my, neighbors, ncount);
       for (int i = 0; i < ncount; i++) {
         this->pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 180, 200, 255});
+      }
+    }
+  }
+}
+
+void WeatherStation::update_sky_() {
+  int horizon = this->panel_h_ / 2;
+
+  // Horizon indicators: one pixel at each end of the horizon line
+  this->pixels_.push_back({0, (int16_t) horizon, 40, 40, 40});
+  this->pixels_.push_back({(int16_t) (this->panel_w_ - 1), (int16_t) horizon, 40, 40, 40});
+
+  // Sun
+  if (!this->sun_rising_.empty() && !this->sun_setting_.empty()) {
+    int64_t sr = this->parse_iso_datetime_(this->sun_rising_);
+    int64_t ss = this->parse_iso_datetime_(this->sun_setting_);
+    int64_t now = (int64_t) time(nullptr);
+
+    if (sr > 0 && ss > 0 && now > 0) {
+      int sx, sy;
+      bool visible;
+      this->sky_position_(sr, ss, now, sx, sy, visible);
+
+      if (sx >= 0 && sx < this->panel_w_ && sy >= 0 && sy < this->panel_h_) {
+        this->pixels_.push_back({(int16_t) sx, (int16_t) sy, 255, 220, 0});
+        int neighbors[2][2];
+        int ncount;
+        this->sky_neighbors_(sx, sy, neighbors, ncount);
+        for (int i = 0; i < ncount; i++) {
+          this->pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 255, 220, 0});
+        }
+      }
+    }
+  }
+
+  // Moon
+  if (!this->moon_rising_.empty() && !this->moon_setting_.empty()) {
+    int64_t mr = this->parse_iso_datetime_(this->moon_rising_);
+    int64_t ms = this->parse_iso_datetime_(this->moon_setting_);
+    int64_t now = (int64_t) time(nullptr);
+
+    if (mr > 0 && ms > 0 && now > 0) {
+      int mx, my;
+      bool visible;
+      this->sky_position_(mr, ms, now, mx, my, visible);
+
+      if (mx >= 0 && mx < this->panel_w_ && my >= 0 && my < this->panel_h_) {
+        this->pixels_.push_back({(int16_t) mx, (int16_t) my, 180, 200, 255});
+        int neighbors[2][2];
+        int ncount;
+        this->sky_neighbors_(mx, my, neighbors, ncount);
+        for (int i = 0; i < ncount; i++) {
+          this->pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 180, 200, 255});
+        }
       }
     }
   }

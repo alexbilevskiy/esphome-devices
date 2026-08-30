@@ -56,6 +56,9 @@ class WeatherStation : public Component {
  protected:
   void update_particles_();
   void update_sky_();
+  void update_sky_border_();
+  void sky_position_(int64_t rise, int64_t set, int64_t now, int &x, int &y, bool &visible);
+  void sky_neighbors_(int x, int y, int out[][2], int &count);
   void get_color_for_precip_(const char *type, uint8_t &r, uint8_t &g, uint8_t &b);
   void angle_to_border_(float angle, int &x, int &y);
   void border_neighbors_(int x, int y, int out[][2], int &count);

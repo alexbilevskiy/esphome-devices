@@ -16,6 +16,10 @@ external_components:
       type: local
       path: components
     components: [weather_station]
+  - source:
+      type: local
+      path: components
+    components: [lvgl_screenshot]
 
 psram:
   mode: octal
@@ -42,6 +46,21 @@ globals:
   - id: extra_dim_global
     type: bool
     initial_value: 'false'
+  - id: show_fps
+    type: bool
+    initial_value: 'false'
+  - id: lvgl_frame_count
+    type: uint32_t
+    initial_value: '0'
+  - id: lvgl_fps
+    type: uint32_t
+    initial_value: '0'
+  - id: last_canvas_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: interval_fps_ema
+    type: float
+    initial_value: '0.0f'
 
 time:
   - platform: homeassistant
@@ -278,11 +297,17 @@ display:
     oe_pin: GPIO18
     clk_pin: GPIO17
 
+lvgl_screenshot:
+  port: 8080
+
 lvgl:
   id: lvgl_ui
   displays: [matrix]
-  buffer_size: 25%
+  buffer_size: 100%
   bg_color: black
+  on_draw_end:
+    then:
+      - lambda: id(lvgl_frame_count) += 1;
   pages:
     - id: main_page
       widgets:
@@ -476,10 +501,19 @@ lvgl:
         - label:
             id: custom_text_line2
             x: 1
-            y: 54
+            y: 55
+            height: 9
             text_font: font_small
             text_color: color_date
             text: ""
+        - label:
+            id: fps_label
+            x: 1
+            y: 49
+            text_font: font_small
+            text_color: color_date
+            text: ""
+            hidden: true
         - canvas:
             id: particle_canvas
             x: 0
@@ -498,50 +532,64 @@ interval:
       - lvgl.widget.refresh: date_label
       - lvgl.widget.refresh: temp_outside_label
       - lambda: |-
-          std::string text = id(custom_text_input).state;
-          if (text.empty() || id(extra_dim_global)) {
+          id(lvgl_fps) = id(lvgl_frame_count);
+          id(lvgl_frame_count) = 0;
+          uint32_t i_fps = (uint32_t) round(id(interval_fps_ema));
+
+          if (id(show_fps)) {
             lv_label_set_text(id(custom_text_line1), "");
             lv_label_set_text(id(custom_text_line2), "");
-            return;
-          }
-          const int max_chars = 25;
-          int char_count = 0;
-          for (size_t i = 0; i < text.length();) {
-            uint8_t c = text[i];
-            if (c < 0x80) i += 1;
-            else if ((c & 0xE0) == 0xC0) i += 2;
-            else if ((c & 0xF0) == 0xE0) i += 3;
-            else if ((c & 0xF8) == 0xF0) i += 4;
-            else i += 1;
-            char_count++;
-          }
-          if (char_count <= max_chars) {
-            lv_label_set_text(id(custom_text_line1), text.c_str());
-            lv_label_set_text(id(custom_text_line2), "");
+            lv_obj_remove_flag(id(fps_label), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(fps_label),
+              str_sprintf("L:%u I:%u", id(lvgl_fps), i_fps).c_str());
+            ESP_LOGI("fps", "L:%u I:%u", id(lvgl_fps), i_fps);
           } else {
-            int char_idx = 0;
-            int cut_byte = 0;
-            int last_space_byte = 0;
-            for (size_t i = 0; i < text.length() && char_idx <= max_chars;) {
-              uint8_t c = text[i];
-              size_t char_len;
-              if (c < 0x80) char_len = 1;
-              else if ((c & 0xE0) == 0xC0) char_len = 2;
-              else if ((c & 0xF0) == 0xE0) char_len = 3;
-              else if ((c & 0xF8) == 0xF0) char_len = 4;
-              else char_len = 1;
-              if (text[i] == ' ') last_space_byte = i;
-              i += char_len;
-              char_idx++;
-              cut_byte = i;
+            lv_obj_add_flag(id(fps_label), LV_OBJ_FLAG_HIDDEN);
+            std::string text = id(custom_text_input).state;
+            if (text.empty() || id(extra_dim_global)) {
+              lv_label_set_text(id(custom_text_line1), "");
+              lv_label_set_text(id(custom_text_line2), "");
+              return;
             }
-            int split_byte = last_space_byte > 0 ? last_space_byte : cut_byte;
-            if (last_space_byte > 0) {
-              lv_label_set_text(id(custom_text_line1), text.substr(0, split_byte).c_str());
-              lv_label_set_text(id(custom_text_line2), text.substr(split_byte + 1).c_str());
+            const int max_chars = 25;
+            int char_count = 0;
+            for (size_t i = 0; i < text.length();) {
+              uint8_t c = text[i];
+              if (c < 0x80) i += 1;
+              else if ((c & 0xE0) == 0xC0) i += 2;
+              else if ((c & 0xF0) == 0xE0) i += 3;
+              else if ((c & 0xF8) == 0xF0) i += 4;
+              else i += 1;
+              char_count++;
+            }
+            if (char_count <= max_chars) {
+              lv_label_set_text(id(custom_text_line1), text.c_str());
+              lv_label_set_text(id(custom_text_line2), "");
             } else {
-              lv_label_set_text(id(custom_text_line1), text.substr(0, split_byte).c_str());
-              lv_label_set_text(id(custom_text_line2), text.substr(split_byte).c_str());
+              int char_idx = 0;
+              int cut_byte = 0;
+              int last_space_byte = 0;
+              for (size_t i = 0; i < text.length() && char_idx <= max_chars;) {
+                uint8_t c = text[i];
+                size_t char_len;
+                if (c < 0x80) char_len = 1;
+                else if ((c & 0xE0) == 0xC0) char_len = 2;
+                else if ((c & 0xF0) == 0xE0) char_len = 3;
+                else if ((c & 0xF8) == 0xF0) char_len = 4;
+                else char_len = 1;
+                if (text[i] == ' ') last_space_byte = i;
+                i += char_len;
+                char_idx++;
+                cut_byte = i;
+              }
+              int split_byte = last_space_byte > 0 ? last_space_byte : cut_byte;
+              if (last_space_byte > 0) {
+                lv_label_set_text(id(custom_text_line1), text.substr(0, split_byte).c_str());
+                lv_label_set_text(id(custom_text_line2), text.substr(split_byte + 1).c_str());
+              } else {
+                lv_label_set_text(id(custom_text_line1), text.substr(0, split_byte).c_str());
+                lv_label_set_text(id(custom_text_line2), text.substr(split_byte).c_str());
+              }
             }
           }
   - interval: 5s
@@ -562,6 +610,18 @@ interval:
           color: black
           opa: TRANSP
       - lambda: |-
+          uint32_t now = millis();
+          if (id(last_canvas_ms) > 0) {
+            uint32_t delta = now - id(last_canvas_ms);
+            if (delta > 0) {
+              float instant_fps = 1000.0f / delta;
+              if (id(interval_fps_ema) < 0.1f)
+                id(interval_fps_ema) = instant_fps;
+              else
+                id(interval_fps_ema) = id(interval_fps_ema) * 0.9f + instant_fps * 0.1f;
+            }
+          }
+          id(last_canvas_ms) = now;
           const auto &pixels = id(ws).get_pixels();
           for (const auto &p : pixels) {
             if (p.x < 0 || p.x >= ${panel_width} || p.y < 0 || p.y >= ${panel_height})
@@ -671,6 +731,22 @@ script:
             lv_obj_remove_flag(id(forecast_group_1), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(id(forecast_group_2), LV_OBJ_FLAG_HIDDEN);
           }
+
+switch:
+  - platform: template
+    name: "Show FPS"
+    id: show_fps_switch
+    icon: mdi:speedometer
+    restore_mode: ALWAYS_OFF
+    optimistic: true
+    on_turn_on:
+      then:
+        - lambda: id(show_fps) = true;
+    on_turn_off:
+      then:
+        - lambda: |-
+            id(show_fps) = false;
+            lv_obj_add_flag(id(fps_label), LV_OBJ_FLAG_HIDDEN);
 
 select:
   - platform: template
