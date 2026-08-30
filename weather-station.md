@@ -38,7 +38,7 @@ This split keeps the component LVGL-agnostic (no UI calls in C++) while allowing
 
 ### Rendering pipeline
 
-- LVGL refreshes the display at 16ms intervals (~60 FPS) via the HUB75 display component. Actual refresh rate is measured via `on_draw_end` trigger (`LV_EVENT_REFR_READY`).
+- LVGL refreshes the display at 16ms intervals (~60 FPS target) via the HUB75 display component. Actual refresh rate is measured via `on_draw_end` trigger (`LV_EVENT_REFR_READY`). The ESPHome main loop interval is set to 1ms (`App.set_loop_interval(1)` on boot) to minimize sleep overhead — without this, the default 16ms loop interval caps effective FPS at ~19.
 - A 20ms interval (50 FPS) clears and redraws the particle canvas from `get_pixels()`. Actual execution rate is measured via EMA of inter-interval delta.
 - Labels are refreshed on two intervals: 1s for time-sensitive widgets (clock, date, temp outside blinking, FPS display), 5s for the rest.
 - A 30s interval updates brightness based on time-of-day and sun position.
