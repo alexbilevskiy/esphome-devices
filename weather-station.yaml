@@ -713,26 +713,29 @@ script:
           if (brightness_255 > 255) brightness_255 = 255;
           id(matrix).set_brightness(brightness_255);
           id(extra_dim_global) = extra_dim;
-
-          if (extra_dim) {
-            lv_obj_add_flag(id(date_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(temp_inside_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(temp_outside_group), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(co2_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(humidity_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(wind_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(forecast_group_1), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(forecast_group_2), LV_OBJ_FLAG_HIDDEN);
-          } else {
-            lv_obj_remove_flag(id(date_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(temp_inside_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(temp_outside_group), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(co2_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(humidity_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(wind_label), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(forecast_group_1), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(id(forecast_group_2), LV_OBJ_FLAG_HIDDEN);
-          }
+      - if:
+          condition:
+            lambda: "return id(extra_dim_global);"
+          then:
+            - lvgl.widget.hide:
+                - date_label
+                - temp_inside_label
+                - temp_outside_group
+                - co2_label
+                - humidity_label
+                - wind_label
+                - forecast_group_1
+                - forecast_group_2
+          else:
+            - lvgl.widget.show:
+                - date_label
+                - temp_inside_label
+                - temp_outside_group
+                - co2_label
+                - humidity_label
+                - wind_label
+                - forecast_group_1
+                - forecast_group_2
 
 switch:
   - platform: template
