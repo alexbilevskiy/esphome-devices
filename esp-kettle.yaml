@@ -126,8 +126,8 @@ switch:
   - platform: template
     id: boil_safe
     name: "boil"
-    optimistic: true
-    restore_mode: ALWAYS_OFF
+    lambda: |-
+      return id(boil).state;
     on_turn_on:
       then:
         - script.execute: boil_safe_on
@@ -147,9 +147,9 @@ switch:
       - script.execute: light_dim_pump
       - switch.turn_on: display_override
       - switch.turn_on: display_power
-      - delay: 1min
-      - switch.turn_on: buttons_lock
+      - script.execute: buttons_lock_relock
     on_turn_on:
+      - script.stop: buttons_lock_relock
       - script.execute: light_dim_power
       - script.execute: light_dim_mode
       - script.execute: light_dim_fire
@@ -207,10 +207,18 @@ binary_sensor:
     id: presence
     icon: "mdi:kettle-alert"
     lambda: |-
-      if (id(temp).state <= 10) {
+      if (isnan(id(temp).state) || id(temp).state <= 10) {
           return false;
       }
       return true;
+    on_release:
+      then:
+        - logger.log:
+            format: "turn off boil by presence"
+            level: WARN
+        - lambda: 'id(shutdown_reason).publish_state("presence: false");'
+        - script.execute: boil_off
+        - script.execute: water_pump_off
 
   - platform: esp32_touch
     name: "button power"
@@ -317,10 +325,34 @@ sensor:
     name: "Water Temperature"
     id: temp
     filters:
+      - clamp:
+          min_value: -10
+          max_value: 120
+          ignore_out_of_range: true
       - sliding_window_moving_average:
           window_size: 5
           send_every: 5
       - throttle_average: 1s
+    on_value_range:
+      - above: 101
+        then:
+          - logger.log:
+              format: "turn off boil by temp"
+              level: WARN
+          - lambda: 'id(shutdown_reason).publish_state("temp: " + std::to_string(id(temp).state));'
+          - script.execute: boil_off
+    on_raw_value:
+      then:
+        - if:
+            condition:
+              - lambda: 'return isnan(x);'
+            then:
+              - logger.log:
+                  format: "turn off boil by temp sensor fault"
+                  level: WARN
+              - lambda: 'id(shutdown_reason).publish_state("temp: NaN");'
+              - script.execute: boil_off
+              - script.execute: water_pump_off
 
   - platform: hx711
     name: "Water Volume"
@@ -345,13 +377,17 @@ sensor:
           window_size: 5
           send_every: 10
       - throttle_average: 1s
-  - platform: template
-    name: "Water Previous volume"
-    id: previous_volume
-    unit_of_measurement: "L"
-    accuracy_decimals: 2
-    update_interval: 1s
-    internal: true
+    on_value_range:
+      - above: 1.32
+        then:
+          - script.execute: water_pump_off
+      - below: 0.22
+        then:
+          - logger.log:
+              format: "turn off boil by volume"
+              level: WARN
+          - lambda: 'id(shutdown_reason).publish_state("volume: " + std::to_string(id(volume).state));'
+          - script.execute: boil_off
 
   - platform: homeassistant
     name: "Filtered water volume"
@@ -518,67 +554,35 @@ output:
     channel: 7
     phase_angle: 0
 
-interval:
-  - interval: 0.1s
-    then:
-      - script.execute: boil_check_unsafe
-      - script.execute: water_pump_check_unsafe
-
 script:
   - id: boil_on
     then:
       - script.execute: light_turn_on_fire
-      - switch.turn_on: display_override
-      - switch.turn_on: display_power
-      - lambda: 'id(boil_safe).publish_state(true);'
       - lambda: 'id(shutdown_reason).publish_state({""});'
       - switch.turn_on: boil
+      - script.execute: boil_timeout
   - id: boil_off
     then:
-      - switch.turn_off: boil
-      - script.execute: light_dim_fire
-      - switch.turn_off: display_override
-      - switch.turn_off: display_power
-      - lambda: 'id(boil_safe).publish_state(false);'
+      - if:
+          condition:
+            - lambda: 'return id(boil).state == true;'
+          then:
+            - script.stop: boil_timeout
+            - switch.turn_off: boil
+            - script.execute: light_dim_fire
 
-  - id: boil_check_unsafe
+  - id: boil_timeout
     then:
+      - delay: 15min
       - if:
           condition:
-            - lambda: 'return id(boil).state == false;'
-          then:
-            - script.stop: boil_check_unsafe
-      - if:
-          condition:
-            - lambda: 'return id(temp).state >= 101;'
+            - lambda: 'return id(boil).state == true;'
           then:
             - logger.log:
-                format: "turn off boil by temp"
+                format: "turn off boil by timeout"
                 level: WARN
-            - lambda: 'id(shutdown_reason).publish_state("temp: " + std::to_string(id(temp).state));'
+            - lambda: 'id(shutdown_reason).publish_state("timeout");'
             - script.execute: boil_off
-            - script.stop: boil_check_unsafe
-      - if:
-          condition:
-            - lambda: 'return id(presence).state == false;'
-          then:
-            - logger.log:
-                format: "turn off boil by presence"
-                level: WARN
-            - lambda: 'id(shutdown_reason).publish_state("presence: " + std::to_string(id(presence).state));'
-            - script.execute: boil_off
-            - script.stop: boil_check_unsafe
-      - if:
-          condition:
-            - lambda: 'return id(volume).state <= 0.22;'
-          then:
-            - logger.log:
-                format: "turn off boil by volume: %d"
-                args: ['id(volume).state']
-                level: WARN
-            - lambda: 'id(shutdown_reason).publish_state("volume: " + std::to_string(id(volume).state));'
-            - script.execute: boil_off
-            - script.stop: boil_check_unsafe
 
   - id: boil_safe_on
     then:
@@ -590,7 +594,11 @@ script:
           then:
             - script.execute: boil_on
           else:
-            - script.execute: boil_off
+            - if:
+                condition:
+                  - lambda: 'return id(boil).state == true;'
+                then:
+                  - script.execute: boil_off
 
   - id: water_pump_on
     then:
@@ -599,36 +607,47 @@ script:
             - lambda: 'return id(presence).state == true;'
             - lambda: 'return id(volume).state < 1.33; //0.92' # new kettle is bigger
           then:
-            - lambda: 'id(previous_volume).publish_state(id(volume).state);'
             - script.execute: light_turn_on_pump
             - switch.turn_on: water_pump
+            - script.execute: water_pump_timeout
   - id: water_pump_off
     then:
-      - switch.turn_off: water_pump
-      - script.execute: light_dim_pump
-
-  - id: water_pump_check_unsafe
-    then:
       - if:
-          any:
-            - lambda: 'return id(presence).state == false;'
-            - lambda: 'return isnan(id(presence).state);'
-            - lambda: 'return id(volume).state >= 1.32;' # new kettle is bigger
+          condition:
+            - lambda: 'return id(water_pump).state == true;'
           then:
+            - script.stop: water_pump_timeout
+            - switch.turn_off: water_pump
+            - script.execute: light_dim_pump
+
+  - id: water_pump_timeout
+    then:
+      - delay: 60s
+      - if:
+          condition:
+            - lambda: 'return id(water_pump).state == true;'
+          then:
+            - logger.log:
+                format: "turn off pump by timeout"
+                level: WARN
             - script.execute: water_pump_off
 
   - id: autorun
     then:
       - script.execute: light_turn_on_mode
       - script.execute: water_pump_on
-      - if:
+      - wait_until:
           condition:
-            - lambda: 'return id(volume).state < 0.2;'
-          then:
-            - delay: 10s
+            - lambda: 'return id(volume).state >= 0.35;'
+          timeout: 60s
       - script.execute: boil_safe_on
       - delay: 5s
       - script.execute: light_dim_mode
+
+  - id: buttons_lock_relock
+    then:
+      - delay: 1min
+      - switch.turn_on: buttons_lock
 
   - id: light_turn_on_power
     then:
