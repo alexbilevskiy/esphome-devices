@@ -63,6 +63,9 @@ globals:
   - id: interval_fps_ema
     type: float
     initial_value: '0.0f'
+  - id: api_connected_global
+    type: bool
+    initial_value: 'false'
 
 time:
   - platform: homeassistant
@@ -533,6 +536,13 @@ interval:
       - lvgl.widget.refresh: clock_label
       - lvgl.widget.refresh: date_label
       - lvgl.widget.refresh: temp_outside_label
+      - if:
+          condition:
+            api.connected:
+          then:
+            - lambda: id(api_connected_global) = true;
+          else:
+            - lambda: id(api_connected_global) = false;
       - lambda: |-
           id(lvgl_fps) = id(lvgl_frame_count);
           id(lvgl_frame_count) = 0;
@@ -547,6 +557,11 @@ interval:
             ESP_LOGI("fps", "L:%u I:%u", id(lvgl_fps), i_fps);
           } else {
             lv_obj_add_flag(id(fps_label), LV_OBJ_FLAG_HIDDEN);
+            if (!id(api_connected_global) && !id(extra_dim_global)) {
+              lv_label_set_text(id(custom_text_line1), "no connection");
+              lv_label_set_text(id(custom_text_line2), "");
+              return;
+            }
             std::string text = id(custom_text_input).state;
             if (text.empty() || id(extra_dim_global)) {
               lv_label_set_text(id(custom_text_line1), "");
