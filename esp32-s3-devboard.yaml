@@ -1,12 +1,13 @@
 esphome:
   name: esp32-s3-devboard
   friendly_name: esp32-s3-devboard
+  on_boot:
+    - lambda: App.set_loop_interval(1);
 
 esp32:
-  board: esp32-s3-devkitc-1
+  variant: esp32s3
   framework:
     type: esp-idf
-    version: recommended
 
 psram:
   mode: octal
@@ -16,10 +17,9 @@ logger:
   baud_rate: 115200
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
+
 safe_mode:
   disabled: true
 
@@ -27,37 +27,62 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
-
+  post_connect_roaming: false
+  power_save_mode: none
+  output_power: 8.5dbm
 
 button:
   - platform: restart
     name: "Reboot"
+
 sensor:
   - platform: uptime
     name: Uptime
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
 
+output:
+  - id: indicator_output_tx
+    platform: gpio
+    pin:
+      number: GPIO43
+    inverted: true
+  # - id: indicator_output_rx
+  #   platform: gpio
+  #   pin:
+  #     number: GPIO44
+  #   inverted: true
+
 light:
   - platform: esp32_rmt_led_strip
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: ws2812
     pin: GPIO48
-    num_leds: 1
+    num_leds: 6
     name: "RGB Led"
+    default_transition_length: 0s
+    rmt_symbols: 48
+    use_dma: false
+    use_psram: false
 
-#light:
-#  - platform: binary
-#    id: indicator_light
-#    name: "Indicator"
-#    output: indicator_output
-#    restore_mode: ALWAYS_ON
-#    internal: true
-#
-#output:
-#  - id: indicator_output
-#    platform: gpio
-#    pin:
-#      number: GPIO8
-#      ignore_strapping_warning: true
-#    inverted: true
+  - platform: esp32_rmt_led_strip
+    channel_colors: RGB
+    chipset: SK6812 #ws2811
+    pin: GPIO14
+    num_leds: 24
+    name: "RGB strip"
+    default_transition_length: 1s
+    rmt_symbols: 96
+    use_dma: true
+    use_psram: false
+
+  - platform: binary
+    id: indicator_light_tx
+    name: "Indicator TX"
+    output: indicator_output_tx
+    restore_mode: ALWAYS_OFF
+
+status_led:
+  pin:
+    number: GPIO44
+    inverted: true
