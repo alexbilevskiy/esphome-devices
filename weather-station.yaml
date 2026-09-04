@@ -676,26 +676,23 @@ light:
     restore_mode: RESTORE_DEFAULT_OFF
 
   - platform: esp32_rmt_led_strip
-    channel_colors: GRB
+    channel_colors: RGB
     chipset: ws2812
     pin: GPIO48
-    num_leds: 1
-    name: "RGB Led"
+    num_leds: 7
     default_transition_length: 0s
     rmt_symbols: 48
     use_dma: false
     use_psram: false
+    internal: true
+    id: rgb_led_strip
 
-  - platform: esp32_rmt_led_strip
-    channel_colors: RGB
-    chipset: SK6812 #ws2811
-    pin: GPIO21
-    num_leds: 24
-    name: "RGB strip"
-    default_transition_length: 0s
-    rmt_symbols: 96
-    use_dma: false
-    use_psram: false
+  - platform: partition
+    name: "RGB Strip"
+    segments:
+      - id: rgb_led_strip
+        from: 1
+        to: 6
 
   # - platform: binary
   #   id: indicator_light_rx

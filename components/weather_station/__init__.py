@@ -3,8 +3,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID
 
-DEPENDENCIES = ["display"]
-
 weather_station_ns = cg.esphome_ns.namespace("weather_station")
 WeatherStation = weather_station_ns.class_("WeatherStation", cg.Component)
 
