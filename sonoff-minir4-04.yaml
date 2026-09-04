@@ -12,10 +12,8 @@ logger:
   baud_rate: 0
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
 safe_mode:
   disabled: true
 
@@ -23,6 +21,8 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
+  post_connect_roaming: false
+  power_save_mode: none
 
 udp:
 packet_transport:
@@ -48,6 +48,7 @@ binary_sensor:
   - platform: gpio
     pin: GPIO00
     id: button01 # internal button
+    name: button01
     filters:
       - invert:
       - delayed_off: 50ms
@@ -58,6 +59,7 @@ binary_sensor:
   - platform: gpio
     pin: GPIO27
     id: s1 # pinout header button
+    name: button_s1
     filters:
       - invert:
       - delayed_off: 50ms

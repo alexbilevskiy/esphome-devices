@@ -24,16 +24,6 @@ wifi:
   post_connect_roaming: false
   power_save_mode: none
 
-light:
-  - platform: esp32_rmt_led_strip
-    channel_colors: RGB
-    chipset: ws2811
-    pin: GPIO16
-    num_leds: 6
-    name: "RGB strip"
-    default_transition_length: 1s
-
-
 button:
   - platform: restart
     name: "Reboot"

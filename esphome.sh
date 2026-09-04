@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#VERS=2025.5.2
 VERS=2026.8.2
 TTY_FLAG="-it"
 if [ "$1" = "--no-tty" ]; then

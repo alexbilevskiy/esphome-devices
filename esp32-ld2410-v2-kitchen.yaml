@@ -10,6 +10,8 @@ esp32:
   board: wemos_d1_mini32
   framework:
     type: esp-idf
+    advanced:
+      minimum_chip_revision: "3.0"
 
 logger:
   baud_rate: 0
@@ -25,6 +27,8 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
   output_power: 20.5dbm
+  post_connect_roaming: false
+  power_save_mode: none
 
 bluetooth_proxy:
 
@@ -76,7 +80,7 @@ output:
     pin: GPIO27
     frequency: 1000 Hz
     id: pwm_output
-    
+
 binary_sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
@@ -309,7 +313,7 @@ number:
     light_threshold:
       name: light threshold
       device_id: presence
-      
+
 button:
   - platform: ld2410
     ld2410_id: ld2410_1
@@ -325,7 +329,7 @@ button:
   - platform: restart
     name: Restart
     entity_category: diagnostic
-      
+
 text_sensor:
   - platform: ld2410
     ld2410_id: ld2410_1
@@ -335,7 +339,7 @@ text_sensor:
     mac_address:
       device_id: presence
       name: "mac address"
-      
+
 select:
   - platform: ld2410
     ld2410_id: ld2410_1
