@@ -1,0 +1,467 @@
+esphome:
+  name: eachen-st-dc4
+  friendly_name: eachen-st-dc4
+  # контроллер просыпается со всеми реле выключенными;
+  # стейт-машина и реле централизованно в script apply_state.
+  # on_boot / Reset только выставляют стейт, реле подтягиваются от стейта.
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(current_floor) = 1;
+          id(move_dir) = 0;
+          id(machine_state) = "AT_BOTTOM";
+      - script.execute: apply_state
+      - lambda: |-
+          id(machine_state_sensor).publish_state("AT_BOTTOM");
+          id(state_sensor).publish_state("IDLE");
+
+esp8266:
+  board: esp01_1m
+
+
+logger:
+  baud_rate: 0
+
+api:
+ota:
+  platform: esphome
+safe_mode:
+  disabled: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  post_connect_roaming: false
+  power_save_mode: none
+
+uart:
+  rx_pin: 3
+  tx_pin: 1
+  baud_rate: 9600
+
+tuya:
+
+switch:
+  - platform: tuya
+    name: "Relay 1" # ДЗ
+    id: relay_dz
+    switch_datapoint: 1
+  - platform: tuya
+    name: "Relay 2" # ДКВ
+    id: relay_dkv
+    switch_datapoint: 2
+  # ДТО: реле физически инвертировано, платформа tuya inverted не поддерживает -
+  # оборачиваем template-свитчем
+  - platform: tuya
+    id: relay_dto_raw
+    switch_datapoint: 3
+    internal: true
+  - platform: template
+    name: "Relay 3" # ДТО
+    id: relay_dto
+    lambda: 'return !id(relay_dto_raw).state;'
+    turn_on_action:
+      - switch.turn_off: relay_dto_raw
+    turn_off_action:
+      - switch.turn_on: relay_dto_raw
+  - platform: tuya
+    name: "Relay 4" # ДКН
+    id: relay_dkn
+    switch_datapoint: 4
+  # - platform: tuya
+  #   name: "All On"
+  #   switch_datapoint: 13
+
+select:
+  - platform: tuya
+    name: "Relay Mode"
+    enum_datapoint: 102
+    options:
+      0: "Self Lock"
+      1: "Momentary"
+      2: "Interlock"
+
+# number:
+#   - platform: tuya
+#     name: "Momentary Timing"
+#     number_datapoint: 103
+#     min_value: 0
+#     max_value: 600
+#     step: 5
+#     multiply: 10
+
+sensor:
+  - platform: uptime
+    name: Uptime
+  # текущий этаж
+  - platform: template
+    name: "Floor"
+    id: floor_sensor
+    update_interval: 1s
+    lambda: |-
+      return (float) id(current_floor);
+
+# внутренний стейт стейт-машины наружу (для отладки),
+# публикуется немедленно из set_state
+text_sensor:
+  - platform: template
+    name: "Machine State"
+    id: machine_state_sensor
+    update_interval: 1s
+
+  # user-facing стейт: проекция machine_state на табло
+  # (IDLE / MOVING_UP / MOVING_DOWN), публикуется из set_state
+  - platform: template
+    name: "State"
+    id: state_sensor
+    update_interval: 1s
+
+globals:
+  # текущий этаж, 1..17, стартуем с 1-го
+  - id: current_floor
+    type: int
+    initial_value: '1'
+  # внутренний стейт стейт-машины (строка):
+  # стоповые:
+  #   IDLE      - промежуточный этаж, ДТО on, ДЗ on, оба концевика замкнуты
+  #   AT_TOP    - 17-й: ДКВ разомкнут (кабина на нём), ДКН замкнут
+  #   AT_BOTTOM - 1-й:  ДКН разомкнут, ДКВ замкнут
+  # фазы движения (направление зашито в имени, дублирует move_dir):
+  #   LEAVING_{UP,DOWN}    - отъезд: ДТО off, ДЗ on
+  #   TRAVELING_{UP,DOWN}  - серая зона: ДТО off, ДЗ off
+  #   APPROACHING_{UP,DOWN} - подход к этажу: ДТО off, ДЗ on (малая скорость)
+  #   ARRIVING_{UP,DOWN}   - проход зоны ДТО: ДТО on, ДЗ on
+  #   APPROACHING_TOP      - подход к 17-му: ДЗ on, ДКВ разомкнут (до ДТО!)
+  #   APPROACHING_BOTTOM   - подход к 1-му: ДЗ on, ДКН разомкнут (до ДТО!)
+  - id: machine_state
+    type: std::string
+    initial_value: '"AT_BOTTOM"'
+  # направление движения: 1 = вверх, -1 = вниз, 0 = стоим
+  - id: move_dir
+    type: int
+    initial_value: '0'
+  # флаг мягкой остановки: доиграть до ближайшего этажа и встать
+  - id: stop_requested
+    type: bool
+    initial_value: 'false'
+
+# тайминги эмуляции, секунды:
+#   t_dwell  - пауза после ДТО on перед следующим отъездом (лифт трогается с точной остановки)
+#   t_leave  - отъезд: ДТО off -> ДЗ off
+#   t_travel - серая зона между этажами (большая скорость, датчиков нет)
+#   t_slow   - от ДЗ (малая скорость) до ДТО (остановка)
+substitutions:
+  t_dwell: '1.5s'
+  t_leave: '0.5s'
+  t_travel: '3s'
+  t_slow: '0.4s'
+
+script:
+  # ЕДИНСТВЕННОЕ место, где реле выставляются по стейту.
+  # Все остальные скрипты меняют только machine_state и зовут apply_state.
+  - id: apply_state
+    mode: queued
+    then:
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "IDLE";'
+          then:
+            - switch.turn_on: relay_dto
+            - switch.turn_on: relay_dz
+            - switch.turn_on: relay_dkv
+            - switch.turn_on: relay_dkn
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "AT_TOP";'
+          then:
+            - switch.turn_on: relay_dto
+            - switch.turn_on: relay_dz
+            - switch.turn_off: relay_dkv
+            - switch.turn_on: relay_dkn
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "AT_BOTTOM";'
+          then:
+            - switch.turn_on: relay_dto
+            - switch.turn_on: relay_dz
+            - switch.turn_on: relay_dkv
+            - switch.turn_off: relay_dkn
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "LEAVING_UP" || id(machine_state) == "LEAVING_DOWN";'
+          then:
+            - switch.turn_off: relay_dto
+            - switch.turn_on: relay_dz
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "TRAVELING_UP" || id(machine_state) == "TRAVELING_DOWN";'
+          then:
+            - switch.turn_off: relay_dto
+            - switch.turn_off: relay_dz
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "APPROACHING_UP" || id(machine_state) == "APPROACHING_DOWN";'
+          then:
+            - switch.turn_off: relay_dto
+            - switch.turn_on: relay_dz
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "ARRIVING_UP" || id(machine_state) == "ARRIVING_DOWN";'
+          then:
+            - switch.turn_on: relay_dto
+            - switch.turn_on: relay_dz
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "APPROACHING_TOP";'
+          then:
+            - switch.turn_off: relay_dto
+            - switch.turn_on: relay_dz
+            - switch.turn_off: relay_dkv
+            - switch.turn_on: relay_dkn
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "APPROACHING_BOTTOM";'
+          then:
+            - switch.turn_off: relay_dto
+            - switch.turn_on: relay_dz
+            - switch.turn_on: relay_dkv
+            - switch.turn_off: relay_dkn
+
+  # смена стейта + подтяжка реле + публикация сенсоров
+  - id: set_state
+    mode: queued
+    parameters:
+      new_state: std::string
+    then:
+      - lambda: |-
+          id(machine_state) = new_state;
+          // проекция на user-facing табло
+          if (new_state == "MOVING_UP" || new_state == "LEAVING_UP" ||
+              new_state == "TRAVELING_UP" || new_state == "APPROACHING_UP" ||
+              new_state == "ARRIVING_UP")
+            id(state_sensor).publish_state("MOVING_UP");
+          else if (new_state == "MOVING_DOWN" || new_state == "LEAVING_DOWN" ||
+                   new_state == "TRAVELING_DOWN" || new_state == "APPROACHING_DOWN" ||
+                   new_state == "ARRIVING_DOWN")
+            id(state_sensor).publish_state("MOVING_DOWN");
+          else
+            id(state_sensor).publish_state("IDLE");
+          id(machine_state_sensor).publish_state(new_state);
+      - script.execute: apply_state
+
+  # один межэтажный цикл (направление в move_dir):
+  # (пауза перед отъездом) -> LEAVING -> TRAVELING -> APPROACHING -> ARRIVING
+  - id: move_one_floor
+    mode: queued
+    then:
+      - delay: ${t_dwell}
+      - script.execute:
+          id: set_state
+          new_state: !lambda |-
+            return id(move_dir) > 0 ? "LEAVING_UP" : "LEAVING_DOWN";
+      - delay: ${t_leave}
+      - script.execute:
+          id: set_state
+          new_state: !lambda |-
+            return id(move_dir) > 0 ? "TRAVELING_UP" : "TRAVELING_DOWN";
+      - delay: ${t_travel}
+      - script.execute:
+          id: set_state
+          new_state: !lambda |-
+            return id(move_dir) > 0 ? "APPROACHING_UP" : "APPROACHING_DOWN";
+      - delay: ${t_slow}
+      - script.execute:
+          id: set_state
+          new_state: !lambda |-
+            return id(move_dir) > 0 ? "ARRIVING_UP" : "ARRIVING_DOWN";
+      # приехали на этаж
+      - lambda: |-
+          id(current_floor) += id(move_dir);
+      - logger.log:
+          format: "Arrived at floor %d"
+          args: ['id(current_floor)']
+
+  # движение вверх до упора
+  - id: move_up_all
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "AT_TOP";'
+          then:
+            - logger.log: "Already at top, refusing"
+            - script.stop: move_one_floor
+      - lambda: |-
+          id(stop_requested) = false;
+          id(move_dir) = 1;
+      - script.execute:
+          id: set_state
+          new_state: !lambda 'return "MOVING_UP";'
+      # уезжаем с нижнего концевика: кабина ушла с 1-го - ДКН обратно замыкается
+      - if:
+          condition:
+            lambda: 'return id(current_floor) <= 1;'
+          then:
+            - switch.turn_on: relay_dkn
+      - while:
+          condition:
+            and:
+              - lambda: 'return id(current_floor) < 16;'
+              - lambda: 'return !id(stop_requested);'
+          then:
+            - script.execute: move_one_floor
+            - script.wait: move_one_floor
+      # последний перегон 16->17: ДКВ размыкается в фазе малой скорости - до ДТО
+      - if:
+          condition:
+            and:
+              - lambda: 'return id(current_floor) == 16;'
+              - lambda: 'return !id(stop_requested);'
+          then:
+            - delay: ${t_dwell}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "LEAVING_UP";'
+            - delay: ${t_leave}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "TRAVELING_UP";'
+            - delay: ${t_travel}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "APPROACHING_TOP";'
+            - delay: ${t_slow}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "AT_TOP";'
+            - lambda: |-
+                id(current_floor) += 1;
+                id(move_dir) = 0;
+            - logger.log: "At top (DKV off during slow approach)"
+          else:
+            - if:
+                condition:
+                  and:
+                    - lambda: 'return id(current_floor) < 16;'
+                    - lambda: 'return id(stop_requested);'
+                then:
+                  - script.execute:
+                      id: set_state
+                      new_state: !lambda 'return "IDLE";'
+                  - lambda: |-
+                      id(move_dir) = 0;
+                  - logger.log: "Stopped by request at floor"
+
+  # движение вниз до упора
+  - id: move_down_all
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return id(machine_state) == "AT_BOTTOM";'
+          then:
+            - logger.log: "Already at bottom, refusing"
+            - script.stop: move_one_floor
+      - lambda: |-
+          id(stop_requested) = false;
+          id(move_dir) = -1;
+      - script.execute:
+          id: set_state
+          new_state: !lambda 'return "MOVING_DOWN";'
+      # уезжаем с верхнего концевика: кабина ушла с 17-го - ДКВ обратно замыкается
+      - if:
+          condition:
+            lambda: 'return id(current_floor) >= 17;'
+          then:
+            - switch.turn_on: relay_dkv
+      - while:
+          condition:
+            and:
+              - lambda: 'return id(current_floor) > 2;'
+              - lambda: 'return !id(stop_requested);'
+          then:
+            - script.execute: move_one_floor
+            - script.wait: move_one_floor
+      # последний перегон 2->1: ДКН размыкается в фазе малой скорости - до ДТО
+      - if:
+          condition:
+            and:
+              - lambda: 'return id(current_floor) == 2;'
+              - lambda: 'return !id(stop_requested);'
+          then:
+            - delay: ${t_dwell}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "LEAVING_DOWN";'
+            - delay: ${t_leave}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "TRAVELING_DOWN";'
+            - delay: ${t_travel}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "APPROACHING_BOTTOM";'
+            - delay: ${t_slow}
+            - script.execute:
+                id: set_state
+                new_state: !lambda 'return "AT_BOTTOM";'
+            - lambda: |-
+                id(current_floor) -= 1;
+                id(move_dir) = 0;
+            - logger.log: "At bottom (DKN off during slow approach)"
+          else:
+            - if:
+                condition:
+                  and:
+                    - lambda: 'return id(current_floor) > 2;'
+                    - lambda: 'return id(stop_requested);'
+                then:
+                  - script.execute:
+                      id: set_state
+                      new_state: !lambda 'return "IDLE";'
+                  - lambda: |-
+                      id(move_dir) = 0;
+                  - logger.log: "Stopped by request at floor"
+
+# мягкий стоп: доиграть текущий цикл до ближайшего этажа и встать
+# движение вверх/вниз до упора
+button:
+  - platform: template
+    name: "Move Up"
+    on_press:
+      then:
+        - script.execute: move_up_all
+  - platform: template
+    name: "Move Down"
+    on_press:
+      then:
+        - script.execute: move_down_all
+  - platform: template
+    name: "Stop"
+    on_press:
+      then:
+        - lambda: 'id(stop_requested) = true;'
+  # сброс: восстановить стартовое состояние (1-й этаж), реле - через apply_state
+  - platform: template
+    name: "Reset"
+    on_press:
+      then:
+        - script.stop: move_one_floor
+        - script.stop: move_up_all
+        - script.stop: move_down_all
+        - lambda: |-
+            id(stop_requested) = false;
+            id(current_floor) = 1;
+            id(move_dir) = 0;
+            id(machine_state) = "AT_BOTTOM";
+            id(machine_state_sensor).publish_state("AT_BOTTOM");
+            id(state_sensor).publish_state("IDLE");
+        - script.execute: apply_state
+        - logger.log: "Reset to floor 1 (AT_BOTTOM)"
+
+status_led:
+  pin:
+    number: 13
+    inverted: true
