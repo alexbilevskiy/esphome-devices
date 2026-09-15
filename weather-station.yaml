@@ -27,14 +27,23 @@ psram:
   mode: octal
   speed: 80MHz
 
+i2c:
+  sda: GPIO21
+  scl: GPIO47
+  scan: false
+
 logger:
+  level: DEBUG
+  initial_level: DEBUG
+  logs:
+    esp-idf: INFO
 
 api:
 ota:
   platform: esphome
 
 safe_mode:
-  num_attempts: 5
+  disabled: true
 
 wifi:
   ssid: !secret wifi_ssid
@@ -66,6 +75,15 @@ globals:
   - id: api_connected_global
     type: bool
     initial_value: 'false'
+  - id: curve_lux
+    type: float[5]
+    initial_value: '{0.0f, 10.0f, 100.0f, 1000.0f, 10000.0f}'
+  - id: curve_bright
+    type: float[5]
+    initial_value: '{1.0f, 3.0f, 10.0f, 30.0f, 100.0f}'
+  - id: curve_lux_ema
+    type: float
+    initial_value: '-1.0f'
 
 time:
   - platform: homeassistant
@@ -709,29 +727,48 @@ script:
   - id: update_brightness
     then:
       - lambda: |-
-          int hour = id(esptime).now().hour;
           int brightness = 0;
           bool extra_dim = false;
 
           auto *l = id(brightness_light);
           if (l->remote_values.is_on() && l->remote_values.get_brightness() > 0.0f) {
+            // Manual override: untouched
             brightness = (int) (l->remote_values.get_brightness() * 100.0f);
             if (brightness <= 1)
               extra_dim = true;
-          } else {
-            std::string sun = id(sun_state).has_state() ? id(sun_state).state : "";
-            if (hour >= 0 && hour < 6) {
-              if (sun == "below_horizon") { brightness = 1; extra_dim = true; }
-              else brightness = 20;
-            } else if (hour >= 6 && hour < 9) {
-              brightness = (sun == "below_horizon") ? 20 : 50;
-            } else if (hour >= 18 && hour < 22) {
-              brightness = 25;
-            } else if (hour >= 22) {
-              brightness = 3;
+          } else if (id(bh1750_lux).has_state() && !isnan(id(bh1750_lux).state)) {
+            // ALS-based: EMA-smooth lux, then piecewise-linear curve
+            float lux = id(bh1750_lux).state;
+            if (id(curve_lux_ema) < 0.0f)
+              id(curve_lux_ema) = lux;
+            else
+              id(curve_lux_ema) = id(curve_lux_ema) * 0.7f + lux * 0.3f;
+            lux = id(curve_lux_ema);
+
+            float b;
+            if (lux <= id(curve_lux)[0]) {
+              b = id(curve_bright)[0];
+            } else if (lux >= id(curve_lux)[4]) {
+              b = id(curve_bright)[4];
             } else {
-              brightness = 60;
+              b = id(curve_bright)[4];
+              for (int i = 0; i < 4; i++) {
+                if (lux < id(curve_lux)[i + 1]) {
+                  float span = id(curve_lux)[i + 1] - id(curve_lux)[i];
+                  float frac = (lux - id(curve_lux)[i]) / span;
+                  b = id(curve_bright)[i] + frac * (id(curve_bright)[i + 1] - id(curve_bright)[i]);
+                  break;
+                }
+              }
             }
+            brightness = (int) roundf(b);
+            if (brightness < 1) brightness = 1;
+            if (brightness > 100) brightness = 100;
+            extra_dim = (brightness <= 5);
+          } else {
+            // No ALS reading yet: safe middle ground
+            brightness = 20;
+            extra_dim = false;
           }
 
           int brightness_255 = (int) round(brightness * 2.55f);
@@ -820,6 +857,167 @@ number:
       then:
         - lambda: id(ws).set_simulate_wind_speed(x);
 
+  - platform: template
+    name: "Curve Lux 1"
+    id: curve_lux_1
+    min_value: 0.0
+    max_value: 20000.0
+    step: 1.0
+    initial_value: 0.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 0.0f) v = 0.0f;
+            if (v >= id(curve_lux)[1]) id(curve_lux)[1] = v + 1.0f;
+            id(curve_lux)[0] = v;
+  - platform: template
+    name: "Curve Lux 2"
+    id: curve_lux_2
+    min_value: 0.0
+    max_value: 20000.0
+    step: 1.0
+    initial_value: 10.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v <= id(curve_lux)[0]) v = id(curve_lux)[0] + 1.0f;
+            if (v >= id(curve_lux)[2]) v = id(curve_lux)[2] - 1.0f;
+            id(curve_lux)[1] = v;
+  - platform: template
+    name: "Curve Lux 3"
+    id: curve_lux_3
+    min_value: 0.0
+    max_value: 20000.0
+    step: 1.0
+    initial_value: 100.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v <= id(curve_lux)[1]) v = id(curve_lux)[1] + 1.0f;
+            if (v >= id(curve_lux)[3]) v = id(curve_lux)[3] - 1.0f;
+            id(curve_lux)[2] = v;
+  - platform: template
+    name: "Curve Lux 4"
+    id: curve_lux_4
+    min_value: 0.0
+    max_value: 20000.0
+    step: 1.0
+    initial_value: 1000.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v <= id(curve_lux)[2]) v = id(curve_lux)[2] + 1.0f;
+            if (v >= id(curve_lux)[4]) v = id(curve_lux)[4] - 1.0f;
+            id(curve_lux)[3] = v;
+  - platform: template
+    name: "Curve Lux 5"
+    id: curve_lux_5
+    min_value: 0.0
+    max_value: 20000.0
+    step: 1.0
+    initial_value: 10000.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v <= id(curve_lux)[3]) v = id(curve_lux)[3] + 1.0f;
+            if (v > 20000.0f) v = 20000.0f;
+            id(curve_lux)[4] = v;
+  - platform: template
+    name: "Curve Brightness 1"
+    id: curve_bright_1
+    min_value: 1.0
+    max_value: 100.0
+    step: 1.0
+    initial_value: 1.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 1.0f) v = 1.0f;
+            if (v > 100.0f) v = 100.0f;
+            id(curve_bright)[0] = v;
+  - platform: template
+    name: "Curve Brightness 2"
+    id: curve_bright_2
+    min_value: 1.0
+    max_value: 100.0
+    step: 1.0
+    initial_value: 3.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 1.0f) v = 1.0f;
+            if (v > 100.0f) v = 100.0f;
+            id(curve_bright)[1] = v;
+  - platform: template
+    name: "Curve Brightness 3"
+    id: curve_bright_3
+    min_value: 1.0
+    max_value: 100.0
+    step: 1.0
+    initial_value: 10.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 1.0f) v = 1.0f;
+            if (v > 100.0f) v = 100.0f;
+            id(curve_bright)[2] = v;
+  - platform: template
+    name: "Curve Brightness 4"
+    id: curve_bright_4
+    min_value: 1.0
+    max_value: 100.0
+    step: 1.0
+    initial_value: 30.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 1.0f) v = 1.0f;
+            if (v > 100.0f) v = 100.0f;
+            id(curve_bright)[3] = v;
+  - platform: template
+    name: "Curve Brightness 5"
+    id: curve_bright_5
+    min_value: 1.0
+    max_value: 100.0
+    step: 1.0
+    initial_value: 100.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 1.0f) v = 1.0f;
+            if (v > 100.0f) v = 100.0f;
+            id(curve_bright)[4] = v;
+
 button:
   - platform: restart
     name: Restart
@@ -836,6 +1034,15 @@ text:
     restore_value: false
 
 sensor:
+  - platform: bh1750
+    name: "BH1750 Illuminance"
+    id: bh1750_lux
+    address: 0x23
+    update_interval: 60s
+    on_value:
+      then:
+        - script.execute: update_brightness
+
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     #update_interval: 15s

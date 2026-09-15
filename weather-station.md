@@ -14,6 +14,7 @@ Based on an earlier [Python/Raspberry Pi implementation](https://github.com/alex
 | Onboard RGB LED | WS2812 (GPIO48) |
 | TX indicator LED | GPIO43 (inverted) |
 | Status LED | GPIO44 (inverted) |
+| ALS sensor | BH1750 on I2C (address 0x23) |
 
 ### HUB75 pin mapping
 
@@ -243,25 +244,27 @@ The previous border-perimeter arc model (analog-clock style around the full pane
 
 ### Auto-Brightness
 
-Brightness adjusts automatically based on time of day and sun position:
+Brightness adjusts automatically based on ambient light level measured by the BH1750 sensor. Illuminance (lux) is smoothed with an EMA (α = 0.3) and mapped to brightness (1-100) via a piecewise-linear curve defined by 5 anchor points:
 
-| Time | Sun position | Brightness (0-100) | Extra dim |
-|------|-------------|-------------------|-----------|
-| 0:00-6:00 | Below horizon | 1 | Yes |
-| 0:00-6:00 | Above horizon | 20 | No |
-| 6:00-9:00 | Below horizon | 20 | No |
-| 6:00-9:00 | Above horizon | 50 | No |
-| 9:00-18:00 | — | 60 | No |
-| 18:00-22:00 | — | 25 | No |
-| 22:00-24:00 | — | 3 | No |
+| Anchor | Default lux | Default brightness |
+|--------|-------------|--------------------|
+| 1 | 0 | 1 |
+| 2 | 10 | 3 |
+| 3 | 100 | 10 |
+| 4 | 1000 | 30 |
+| 5 | 10000 | 100 |
 
-**Extra dim mode** (brightness = 1): hides all non-essential widgets (date, temperatures, CO2, humidity, wind, forecast, custom text). Only the clock and particle canvas (sky arc + precipitation) remain visible. Clock color switches from white (255,255,255) to dim gray (40,40,40) to compensate for the HUB75 driver's brightness curve difference vs BCM-based drivers.
+All 10 values (5 lux thresholds + 5 brightness anchors) are editable from Home Assistant via template number entities (`Curve Lux 1-5`, `Curve Brightness 1-5`) and are restored after reboot (`restore_value: true`). Lux thresholds are clamped to remain strictly increasing. Below anchor 1's lux, brightness is anchor 1's value; above anchor 5's lux, anchor 5's value.
+
+**Extra dim mode** (mapped brightness <= 5): hides all non-essential widgets (date, temperatures, CO2, humidity, wind, forecast, custom text). Only the clock and particle canvas (sky arc + precipitation) remain visible. Clock color switches from white (255,255,255) to dim gray (40,40,40) to compensate for the HUB75 driver's brightness curve difference vs BCM-based drivers.
+
+**Fallback:** before the first BH1750 reading arrives (e.g. after boot), a fixed brightness of 20 is used (no extra dim).
 
 **Manual override:** A `Brightness` light entity (monochromatic) allows the user to set a fixed brightness. When ON, auto-brightness is bypassed. When OFF, auto-brightness resumes. Setting brightness to 1 via the slider also triggers extra dim mode.
 
 Brightness conversion: HUB75 uses 0-255 scale. `brightness_255 = round(brightness_100 * 2.55)`. Special case: `brightness == 1` maps to `1/255` (not `3/255` from rounding) to avoid excessive brightness at the lowest setting.
 
-Updated on two triggers: light state change (immediate) and 30s interval (automatic transitions).
+Updated on three triggers: light state change (immediate), BH1750 reading (every 60s), and 30s interval (catch-all for curve edits and EMA progression).
 
 ### Weather Icons
 
@@ -287,7 +290,7 @@ All data flows via ESPHome native API (no MQTT, no HTTP polling). HA entities ar
 | current_icon | sensor.fact_icon | text_sensor | weather_icon |
 | wind_bearing | weather.yandex_weather (attr: wind_bearing) | text_sensor | wind_label |
 | wind_speed_weather | weather.yandex_weather (attr: wind_speed) | text_sensor | wind_label |
-| sun_state | sun.sun | text_sensor | brightness logic |
+| sun_state | sun.sun | text_sensor | (unused, kept for reference) |
 | sun_rising | sun.sun (attr: next_rising) | text_sensor | sky arc (sun) |
 | sun_setting | sun.sun (attr: next_setting) | text_sensor | sky arc (sun) |
 | moon_rising | sensor.home_moon_rise | text_sensor | sky arc (moon) |
@@ -316,6 +319,9 @@ All template sensors should have availability templates guarding against missing
 | Entity | Type | Purpose |
 |--------|------|---------|
 | Brightness | light (monochromatic) | On/off + brightness slider. OFF = auto mode. |
+| BH1750 Illuminance | sensor | Ambient light level (drives auto-brightness) |
+| Curve Lux 1-5 | number (slider) | Lux thresholds of the brightness curve anchors |
+| Curve Brightness 1-5 | number (slider) | Brightness values of the curve anchors (1-100) |
 | Custom text | text | User text input (up to 150 chars) |
 | Show FPS | switch | Toggle FPS overlay (replaces custom text) |
 | Simulate precipitation | select | Options: "", "snow", "rain", "wet_snow" |
