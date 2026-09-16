@@ -14,7 +14,7 @@ Based on an earlier [Python/Raspberry Pi implementation](https://github.com/alex
 | Onboard RGB LED | WS2812 (GPIO48) |
 | TX indicator LED | GPIO43 (inverted) |
 | Status LED | GPIO44 (inverted) |
-| ALS sensor | BH1750 on I2C (address 0x23) |
+| ALS sensor | None onboard — ambient lux received via UDP packet_transport from the `presence-bedroom` device (BH1750) |
 
 ### HUB75 pin mapping
 
@@ -244,7 +244,21 @@ The previous border-perimeter arc model (analog-clock style around the full pane
 
 ### Auto-Brightness
 
-Brightness adjusts automatically based on ambient light level measured by the BH1750 sensor. Illuminance (lux) is smoothed with an EMA (α = 0.3) and mapped to brightness (1-100) via a piecewise-linear curve defined by 5 anchor points:
+Brightness adjusts automatically based on the selected auto-brightness mode (template select `Auto Brightness Mode`, restored after reboot, default `time`):
+
+**Mode `time`** — time of day and sun position:
+
+| Time | Sun position | Brightness (0-100) | Extra dim |
+|------|-------------|-------------------|-----------|
+| 0:00-6:00 | Below horizon | 1 | Yes |
+| 0:00-6:00 | Above horizon | 20 | No |
+| 6:00-9:00 | Below horizon | 20 | No |
+| 6:00-9:00 | Above horizon | 50 | No |
+| 9:00-18:00 | — | 60 | No |
+| 18:00-22:00 | — | 25 | No |
+| 22:00-24:00 | — | 3 | No |
+
+**Mode `als`** — ambient light level. Illuminance (lux) is received via UDP packet transport from the `presence-bedroom` device (BH1750, broadcast every 1s as `bh1750_lux`, consumed as internal `ambient_lux`). Lux is smoothed with an EMA (α = 0.3) and mapped to brightness (1-100) via a piecewise-linear curve defined by 5 anchor points:
 
 | Anchor | Default lux | Default brightness |
 |--------|-------------|--------------------|
@@ -258,13 +272,13 @@ All 10 values (5 lux thresholds + 5 brightness anchors) are editable from Home A
 
 **Extra dim mode** (mapped brightness <= 5): hides all non-essential widgets (date, temperatures, CO2, humidity, wind, forecast, custom text). Only the clock and particle canvas (sky arc + precipitation) remain visible. Clock color switches from white (255,255,255) to dim gray (40,40,40) to compensate for the HUB75 driver's brightness curve difference vs BCM-based drivers.
 
-**Fallback:** before the first BH1750 reading arrives (e.g. after boot), a fixed brightness of 20 is used (no extra dim).
+**Fallback:** in `als` mode, before the first lux packet arrives (e.g. after boot), the time-of-day logic is used instead.
 
-**Manual override:** A `Brightness` light entity (monochromatic) allows the user to set a fixed brightness. When ON, auto-brightness is bypassed. When OFF, auto-brightness resumes. Setting brightness to 1 via the slider also triggers extra dim mode.
+**Manual override:** A `Brightness` light entity (monochromatic) allows the user to set a fixed brightness. When ON, auto-brightness is bypassed regardless of mode. When OFF, auto-brightness resumes. Setting brightness to 1 via the slider also triggers extra dim mode.
 
 Brightness conversion: HUB75 uses 0-255 scale. `brightness_255 = round(brightness_100 * 2.55)`. Special case: `brightness == 1` maps to `1/255` (not `3/255` from rounding) to avoid excessive brightness at the lowest setting.
 
-Updated on three triggers: light state change (immediate), BH1750 reading (every 60s), and 30s interval (catch-all for curve edits and EMA progression).
+Updated on: light state change (immediate), mode select change, each received lux packet (~1s), and 30s interval (catch-all).
 
 ### Weather Icons
 
@@ -278,7 +292,7 @@ Icons are rendered at full brightness (the original Python implementation dimmed
 
 ### Data sources
 
-All data flows via ESPHome native API (no MQTT, no HTTP polling). HA entities are imported using `platform: homeassistant` sensors and text sensors. State updates are push-based (real-time).
+All data flows via ESPHome native API (no MQTT, no HTTP polling). HA entities are imported using `platform: homeassistant` sensors and text sensors. State updates are push-based (real-time). Exception: ambient lux arrives directly from the `presence-bedroom` device via UDP packet transport (bypasses HA).
 
 | ESPHome ID | HA Entity | Type | Feeds |
 |------------|-----------|------|-------|
@@ -290,7 +304,7 @@ All data flows via ESPHome native API (no MQTT, no HTTP polling). HA entities ar
 | current_icon | sensor.fact_icon | text_sensor | weather_icon |
 | wind_bearing | weather.yandex_weather (attr: wind_bearing) | text_sensor | wind_label |
 | wind_speed_weather | weather.yandex_weather (attr: wind_speed) | text_sensor | wind_label |
-| sun_state | sun.sun | text_sensor | (unused, kept for reference) |
+| sun_state | sun.sun | text_sensor | brightness logic (`time` mode) |
 | sun_rising | sun.sun (attr: next_rising) | text_sensor | sky arc (sun) |
 | sun_setting | sun.sun (attr: next_setting) | text_sensor | sky arc (sun) |
 | moon_rising | sensor.home_moon_rise | text_sensor | sky arc (moon) |
@@ -319,7 +333,8 @@ All template sensors should have availability templates guarding against missing
 | Entity | Type | Purpose |
 |--------|------|---------|
 | Brightness | light (monochromatic) | On/off + brightness slider. OFF = auto mode. |
-| BH1750 Illuminance | sensor | Ambient light level (drives auto-brightness) |
+| Auto Brightness Mode | select | Auto mode: `time` (time-of-day + sun) or `als` (BH1750 curve) |
+| Ambient lux (internal) | sensor (packet_transport) | Internal; drives auto-brightness in `als` mode. Source: presence-bedroom `bh1750_lux` broadcast. |
 | Curve Lux 1-5 | number (slider) | Lux thresholds of the brightness curve anchors |
 | Curve Brightness 1-5 | number (slider) | Brightness values of the curve anchors (1-100) |
 | Custom text | text | User text input (up to 150 chars) |

@@ -35,7 +35,15 @@ wifi:
   fast_connect: true
   post_connect_roaming: false
   power_save_mode: none
-  output_power: 8.5dbm
+  # output_power: 8.5dbm
+
+udp:
+packet_transport:
+  platform: udp
+  update_interval: 1s
+  sensors:
+    - id: bh1750_lux
+      broadcast_id: bh1750_lux
 
 i2c:
   sda: GPIO2

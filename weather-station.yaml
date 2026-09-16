@@ -27,10 +27,17 @@ psram:
   mode: octal
   speed: 80MHz
 
-i2c:
-  sda: GPIO21
-  scl: GPIO47
-  scan: false
+udp:
+packet_transport:
+  platform: udp
+  update_interval: 1s
+  providers:
+    - name: presence-bedroom
+
+# i2c:
+#   sda: GPIO21
+#   scl: GPIO47
+#   scan: false
 
 logger:
   level: DEBUG
@@ -729,6 +736,7 @@ script:
       - lambda: |-
           int brightness = 0;
           bool extra_dim = false;
+          bool mode_als = id(auto_brightness_mode).current_option() == "als";
 
           auto *l = id(brightness_light);
           if (l->remote_values.is_on() && l->remote_values.get_brightness() > 0.0f) {
@@ -736,9 +744,9 @@ script:
             brightness = (int) (l->remote_values.get_brightness() * 100.0f);
             if (brightness <= 1)
               extra_dim = true;
-          } else if (id(bh1750_lux).has_state() && !isnan(id(bh1750_lux).state)) {
+          } else if (mode_als && id(ambient_lux).has_state() && !isnan(id(ambient_lux).state)) {
             // ALS-based: EMA-smooth lux, then piecewise-linear curve
-            float lux = id(bh1750_lux).state;
+            float lux = id(ambient_lux).state;
             if (id(curve_lux_ema) < 0.0f)
               id(curve_lux_ema) = lux;
             else
@@ -766,9 +774,21 @@ script:
             if (brightness > 100) brightness = 100;
             extra_dim = (brightness <= 5);
           } else {
-            // No ALS reading yet: safe middle ground
-            brightness = 20;
-            extra_dim = false;
+            // Time-of-day + sun position
+            int hour = id(esptime).now().hour;
+            std::string sun = id(sun_state).has_state() ? id(sun_state).state : "";
+            if (hour >= 0 && hour < 6) {
+              if (sun == "below_horizon") { brightness = 1; extra_dim = true; }
+              else brightness = 20;
+            } else if (hour >= 6 && hour < 9) {
+              brightness = (sun == "below_horizon") ? 20 : 50;
+            } else if (hour >= 18 && hour < 22) {
+              brightness = 25;
+            } else if (hour >= 22) {
+              brightness = 3;
+            } else {
+              brightness = 60;
+            }
           }
 
           int brightness_255 = (int) round(brightness * 2.55f);
@@ -818,6 +838,18 @@ switch:
             lv_obj_add_flag(id(fps_label), LV_OBJ_FLAG_HIDDEN);
 
 select:
+  - platform: template
+    name: "Auto Brightness Mode"
+    id: auto_brightness_mode
+    options:
+      - "time"
+      - "als"
+    initial_option: "time"
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - script.execute: update_brightness
   - platform: template
     name: "Simulate precipitation"
     id: sim_precip
@@ -1034,14 +1066,24 @@ text:
     restore_value: false
 
 sensor:
-  - platform: bh1750
+  - platform: packet_transport
+    provider: presence-bedroom
     name: "BH1750 Illuminance"
-    id: bh1750_lux
-    address: 0x23
-    update_interval: 60s
+    remote_id: bh1750_lux
+    id: ambient_lux
+    internal: true
     on_value:
       then:
         - script.execute: update_brightness
+
+  # - platform: bh1750
+  #   name: "BH1750 Illuminance"
+  #   id: bh1750_lux
+  #   address: 0x23
+  #   update_interval: 60s
+  #   on_value:
+  #     then:
+  #       - script.execute: update_brightness
 
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
