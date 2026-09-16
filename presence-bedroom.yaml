@@ -23,10 +23,9 @@ esp32_ble_tracker:
 
 
 api:
-  password: ""
 ota:
   platform: esphome
-  password: ""
+
 safe_mode:
   disabled: true
 
@@ -34,7 +33,14 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
+  post_connect_roaming: false
+  power_save_mode: none
+  output_power: 8.5dbm
 
+i2c:
+  sda: GPIO2
+  scl: GPIO1
+  scan: false
 
 status_led:
   pin:
@@ -68,6 +74,12 @@ binary_sensor:
       name: out pin presence status
 
 sensor:
+  - platform: bh1750
+    name: "BH1750 Illuminance"
+    id: bh1750_lux
+    address: 0x23
+    update_interval: 1s
+
   - platform: ld2410
     ld2410_id: ld2410_1
     moving_distance:
