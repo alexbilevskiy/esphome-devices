@@ -3,10 +3,12 @@ esphome:
   name: esp-kettle
   friendly_name: esp-kettle
   on_boot:
-    priority: 500
-    then:
-      switch.turn_on: buttons_lock
-
+    - priority: 500
+      then:
+        switch.turn_on: buttons_lock
+    - priority: 250
+      then:
+        - script.execute: update_kettle_state
 esp32:
   board: lolin_s2_mini
   variant: esp32s2
@@ -114,6 +116,12 @@ switch:
     name: "water pump"
     restore_mode: ALWAYS_OFF
     internal: true
+    on_turn_on:
+      then:
+        - script.execute: update_kettle_state
+    on_turn_off:
+      then:
+        - script.execute: update_kettle_state
 
   - platform: gpio
     id: boil
@@ -122,6 +130,12 @@ switch:
       inverted: true
     restore_mode: ALWAYS_OFF
     internal: true
+    on_turn_on:
+      then:
+        - script.execute: update_kettle_state
+    on_turn_off:
+      then:
+        - script.execute: update_kettle_state
 
   - platform: template
     id: boil_safe
@@ -129,6 +143,11 @@ switch:
     lambda: |-
       return id(boil).state;
     turn_on_action:
+      - if:
+          condition:
+            - lambda: 'return id(buttons_lock).state == true;'
+          then:
+            - switch.turn_off: buttons_lock
       - script.execute: boil_safe_on
     turn_off_action:
       - script.execute: boil_off
@@ -139,6 +158,7 @@ switch:
     optimistic: true
     restore_mode: ALWAYS_ON
     on_turn_off:
+      - script.execute: update_kettle_state
       - script.execute: light_turn_on_power
       - script.execute: light_dim_mode
       - script.execute: light_dim_fire
@@ -150,6 +170,7 @@ switch:
       - script.stop: buttons_lock_relock
       - script.execute: boil_off
       - script.execute: water_pump_off
+      - script.execute: update_kettle_state
       - script.execute: light_dim_power
       - script.execute: light_dim_mode
       - script.execute: light_dim_fire
@@ -180,6 +201,11 @@ button:
     name: Autorun
     on_press:
       then:
+        - if:
+            condition:
+              - lambda: 'return id(buttons_lock).state == true;'
+            then:
+              - switch.turn_off: buttons_lock
         - script.execute: autorun
 
 binary_sensor:
@@ -229,9 +255,11 @@ binary_sensor:
       then:
         - if:
             condition:
-              - lambda: 'return id(kettle_state).state == "locked" || id(kettle_state).state == "idle" || id(kettle_state).state == "filling";'
+              - lambda: 'return id(buttons_lock).state == true;'
             then:
-              - switch.toggle: buttons_lock
+              - switch.turn_off: buttons_lock
+            else:
+              - switch.turn_on: buttons_lock
 
   - platform: esp32_touch
     name: "button mode"
@@ -400,17 +428,6 @@ text_sensor:
     name: "Kettle State"
     id: kettle_state
     icon: "mdi:kettle"
-    lambda: |-
-      if (id(buttons_lock).state)
-        return std::string("locked");
-      if (id(boil).state && id(water_pump).state)
-        return std::string("filling+boiling");
-      if (id(boil).state)
-        return std::string("boiling");
-      if (id(water_pump).state)
-        return std::string("filling");
-      return std::string("idle");
-    update_interval: 1s
   - platform: template
     name: shutdown reason
     id: shutdown_reason
@@ -571,6 +588,21 @@ output:
     phase_angle: 0
 
 script:
+  - id: update_kettle_state
+    then:
+      - lambda: |-
+          if (id(buttons_lock).state) {
+            id(kettle_state).publish_state("locked");
+          } else if (id(boil).state && id(water_pump).state) {
+            id(kettle_state).publish_state("filling+boiling");
+          } else if (id(boil).state) {
+            id(kettle_state).publish_state("boiling");
+          } else if (id(water_pump).state) {
+            id(kettle_state).publish_state("filling");
+          } else {
+            id(kettle_state).publish_state("idle");
+          }
+
   - id: boil_on
     then:
       - script.execute: light_turn_on_fire
@@ -604,24 +636,18 @@ script:
     then:
       - if:
           condition:
-            - lambda: 'return id(kettle_state).state == "idle" || id(kettle_state).state == "filling";'
+            - lambda: 'return id(boil).state == false;'
             - lambda: 'return id(temp).state < 99;'
             - lambda: 'return id(presence).state == true;'
             - lambda: 'return id(volume).state >= 0.35 || id(water_pump).state == true;'
           then:
             - script.execute: boil_on
-          else:
-            - if:
-                condition:
-                  - lambda: 'return id(boil).state == true;'
-                then:
-                  - script.execute: boil_off
 
   - id: water_pump_on
     then:
       - if:
           condition:
-            - lambda: 'return id(kettle_state).state == "idle" || id(kettle_state).state == "boiling";'
+            - lambda: 'return id(water_pump).state == false;'
             - lambda: 'return id(presence).state == true;'
             - lambda: 'return id(volume).state < 1.33; //0.92' # new kettle is bigger
           then:
@@ -654,7 +680,7 @@ script:
     then:
       - if:
           condition:
-            - lambda: 'return id(kettle_state).state == "idle";'
+            - lambda: 'return id(boil).state == false && id(water_pump).state == false;'
           then:
             - script.execute: light_turn_on_mode
             - script.execute: water_pump_on
