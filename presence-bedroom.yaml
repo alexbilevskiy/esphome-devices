@@ -40,7 +40,7 @@ wifi:
 udp:
 packet_transport:
   platform: udp
-  update_interval: 1s
+  update_interval: 60s # thats for a full batch. individual sensors are sent with their own update_interval
   sensors:
     - id: bh1750_lux
       broadcast_id: bh1750_lux
@@ -82,11 +82,20 @@ binary_sensor:
       name: out pin presence status
 
 sensor:
+  # raw, fast, not exposed to HA (nameless) — feeds packet_transport at 1s
   - platform: bh1750
-    name: "BH1750 Illuminance"
+    internal: true
     id: bh1750_lux
     address: 0x23
     update_interval: 1s
+  # HA-visible: publish on >= 1 lux change (immediate) or 60s heartbeat
+  - platform: copy
+    source_id: bh1750_lux
+    name: "BH1750 Illuminance"
+    filters:
+      - or:
+          - delta: 1
+          - heartbeat: 60s
 
   - platform: ld2410
     ld2410_id: ld2410_1

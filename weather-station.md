@@ -216,6 +216,19 @@ The `precip_active_` flag resets the spawn timer when precipitation starts, prev
 
 Canvas updates at 20ms (50 FPS). The component's `loop()` updates particle state continuously; the interval lambda reads `get_pixels()` and draws via `lv_canvas_set_px()`.
 
+#### Performance profile and failed optimization attempts
+
+Measured with `runtime_stats:` (per-component loop times): the canvas-driven render path costs ~35ms per LVGL frame during precipitation (~26-29 effective FPS). Every `lv_canvas_set_px`/`lv_canvas.fill` call invalidates the whole full-screen canvas, so each 20ms tick forces a full-frame LVGL software render (background + all labels + ARGB8888 canvas alpha blend) plus the HUB75 per-pixel bit-plane scatter. This is the single dominant cost of the whole device (~92% of main-loop active time). Two alternative architectures were built and tested; both failed and were reverted:
+
+1. **Partial invalidation via direct canvas buffer writes** — wrote ARGB8888 pixels straight into the canvas draw buffer (`lv_canvas_get_draw_buf()`) bypassing the invalidating `lv_canvas_set_px`, then invalidated only dirty row bands via `lv_obj_invalidate_area()`. Result: no FPS gain with precipitation (rain spreads over most of the 64 rows within a second, so the ">50% rows dirty → full-screen fallback" branch fired nearly every tick) plus visual artifacts (stale vertical lines: the prev-pixel snapshot was taken at the component's 1kHz loop rate, not at the 20ms draw tick, so most drawn pixels were never erased). Clean 50 FPS without precipitation confirmed the mechanism itself works. Reverted.
+2. **Direct-to-panel drawing (no canvas)** — drew/erased particles straight into the HUB75 framebuffer via `matrix.draw_pixel_at()`, redrawing after `on_draw_end`. Result: stable 50 FPS, but severe artifacts: erasing a moved particle blanks the pixel it crossed over a widget glyph, and widgets don't re-render until their 1s/5s tick — particles "erode" labels pixel-by-pixel. Correctly repairing this requires knowing the LVGL-composited color under each particle, which only a full re-render provides — i.e. the canvas. Reverted.
+
+Also rejected by analysis (not tested): particles as individual LVGL widgets — LVGL's invalid-area buffer is 32 entries (`LV_INV_BUF_SIZE`); the 33rd area resets to a full-screen invalidation, and 40-74 particles × old+new positions overflow it every refresh. Strictly worse than the canvas.
+
+Accepted micro-optimizations (kept): `byte_order: little_endian` on the `lvgl:` block (skips the per-frame RGB565 byte swap; colors verified correct, no measurable FPS gain) and the brightness write action hiding/showing widgets only on extra-dim transitions, plus the auto-brightness feedback call skipping publication when the computed brightness is unchanged.
+
+`bit_depth: 6` on the hub75 display was also tested (slight FPS gain, under 2) but garbles colors on this panel and was reverted.
+
 ### Sun/Moon Arc
 
 Sun and moon position indicators travel along the **screen perimeter** — the projection of their circular sky path onto the rectangle edges. The middle of the screen (y = panel_height/2) represents the horizon.
@@ -244,7 +257,7 @@ The previous border-perimeter arc model (analog-clock style around the full pane
 
 ### Auto-Brightness
 
-Brightness adjusts automatically based on the selected auto-brightness mode (template select `Auto Brightness Mode`, restored after reboot, default `time`):
+Brightness is controlled via the `Brightness` light entity and the `Auto Brightness Mode` select (template, restored after reboot, default `als`) with three modes. The light entity is fully compliant and always reflects the panel's actual brightness: in `manual` mode it is the driver, in auto modes it displays the computed value.
 
 **Mode `time`** — time of day and sun position:
 
@@ -258,27 +271,30 @@ Brightness adjusts automatically based on the selected auto-brightness mode (tem
 | 18:00-22:00 | — | 25 | No |
 | 22:00-24:00 | — | 3 | No |
 
-**Mode `als`** — ambient light level. Illuminance (lux) is received via UDP packet transport from the `presence-bedroom` device (BH1750, broadcast every 1s as `bh1750_lux`, consumed as internal `ambient_lux`). Lux is smoothed with an EMA (α = 0.3) and mapped to brightness (1-100) via a piecewise-linear curve defined by 5 anchor points:
+**Mode `als`** — ambient light level. Illuminance (lux) is received via UDP packet transport from the `presence-bedroom` device (BH1750 read at 1s, broadcast every 1s as `bh1750_lux`, consumed as internal `ambient_lux`; the HA-visible entity on the provider publishes on >= 1 lux change or a 60s heartbeat so HA is not flooded). Lux is mapped to brightness (1-100) via a step clamp (no interpolation, no smoothing): 5 thresholds define 6 bands, each band has its own brightness level. Note: the first threshold must be > 0, since `lux < 0` is unreachable (lux >= 0) and would leave band 1 dead:
 
-| Anchor | Default lux | Default brightness |
-|--------|-------------|--------------------|
-| 1 | 0 | 1 |
-| 2 | 10 | 3 |
-| 3 | 100 | 10 |
-| 4 | 1000 | 30 |
-| 5 | 10000 | 100 |
+| Band | Lux range (defaults) | Default brightness |
+|------|----------------------|--------------------|
+| 1 | < 1 | 1 |
+| 2 | 1-24.99 | 3 |
+| 3 | 25-39.99 | 25 |
+| 4 | 40-99.99 | 40 |
+| 5 | 100-199.99 | 50 |
+| 6 | >= 200 | 70 |
 
-All 10 values (5 lux thresholds + 5 brightness anchors) are editable from Home Assistant via template number entities (`Curve Lux 1-5`, `Curve Brightness 1-5`) and are restored after reboot (`restore_value: true`). Lux thresholds are clamped to remain strictly increasing. Below anchor 1's lux, brightness is anchor 1's value; above anchor 5's lux, anchor 5's value.
+All 11 values (5 lux thresholds + 6 brightness levels) are editable from Home Assistant via template number entities (`Curve Lux 1-5`, `Curve Brightness 1-6`) and are restored after reboot (`restore_value: true`). Lux thresholds are clamped to remain strictly increasing. No hysteresis — a lux value oscillating at a band boundary will toggle brightness between the adjacent bands.
 
-**Extra dim mode** (mapped brightness <= 5): hides all non-essential widgets (date, temperatures, CO2, humidity, wind, forecast, custom text). Only the clock and particle canvas (sky arc + precipitation) remain visible. Clock color switches from white (255,255,255) to dim gray (40,40,40) to compensate for the HUB75 driver's brightness curve difference vs BCM-based drivers.
+**Extra dim mode** (effective brightness == 1): hides all non-essential widgets (date, temperatures, CO2, humidity, wind, forecast, custom text). Only the clock and particle canvas (sky arc + precipitation) remain visible. Clock color switches from white (255,255,255) to dim gray (40,40,40) to compensate for the HUB75 driver's brightness curve difference vs BCM-based drivers.
 
 **Fallback:** in `als` mode, before the first lux packet arrives (e.g. after boot), the time-of-day logic is used instead.
 
-**Manual override:** A `Brightness` light entity (monochromatic) allows the user to set a fixed brightness. When ON, auto-brightness is bypassed regardless of mode. When OFF, auto-brightness resumes. Setting brightness to 1 via the slider also triggers extra dim mode.
+**Mode `manual`** — the `Brightness` light entity (monochromatic, `restore_mode: RESTORE_DEFAULT_ON`) directly drives the panel: its 0-100% slider maps to panel brightness via the output `write_action`. Turning the light OFF sets panel brightness to 0 (dark screen; widgets keep rendering). The last manual state and level survive reboot.
 
-Brightness conversion: HUB75 uses 0-255 scale. `brightness_255 = round(brightness_100 * 2.55)`. Special case: `brightness == 1` maps to `1/255` (not `3/255` from rounding) to avoid excessive brightness at the lowest setting.
+**Architecture:** the template output's `write_action` is the single actuation path — every light change (user action in `manual`, or the feedback call below in auto modes) flows through it: `brightness_255 = round(level * 255)`, `matrix.set_brightness()`, extra-dim flag, widget hide/show. In auto modes `update_brightness` computes the value and pushes it into the light via `make_call()` with `set_publish(true)`, `set_save(false)`, `set_transition_length(0)` — so the HA slider follows the auto brightness, flash is only written on real user actions, and there is no fade. A user slider change while in an auto mode applies momentarily and is overwritten by the next auto computation (~1s in `als`, up to 30s in `time`). The light has `gamma_correct: 1.0` — the panel applies its own brightness curve, and the default light gamma (2.8) would crush low brightness levels (e.g. 1% → ~0%).
 
-Updated on: light state change (immediate), mode select change, each received lux packet (~1s), and 30s interval (catch-all).
+Brightness conversion: HUB75 uses 0-255 scale. `brightness_255 = round(level * 255)`. Special case: brightness 1% maps to `1/255` to avoid excessive brightness at the lowest setting.
+
+`update_brightness` runs on: boot (late priority, applies auto value over the restored light state), mode select change, each received lux packet (~1s), and a 30s interval.
 
 ### Weather Icons
 
@@ -332,11 +348,11 @@ All template sensors should have availability templates guarding against missing
 
 | Entity | Type | Purpose |
 |--------|------|---------|
-| Brightness | light (monochromatic) | On/off + brightness slider. OFF = auto mode. |
-| Auto Brightness Mode | select | Auto mode: `time` (time-of-day + sun) or `als` (BH1750 curve) |
+| Brightness | light (monochromatic) | Panel brightness. Driver in `manual` mode; live display of auto value otherwise. OFF = dark screen (manual). |
+| Auto Brightness Mode | select | Brightness mode: `time` (time-of-day + sun), `als` (lux curve), `manual` (light entity drives) |
 | Ambient lux (internal) | sensor (packet_transport) | Internal; drives auto-brightness in `als` mode. Source: presence-bedroom `bh1750_lux` broadcast. |
-| Curve Lux 1-5 | number (slider) | Lux thresholds of the brightness curve anchors |
-| Curve Brightness 1-5 | number (slider) | Brightness values of the curve anchors (1-100) |
+| Curve Lux 1-5 | number (slider) | Lux band thresholds of the brightness step clamp |
+| Curve Brightness 1-6 | number (slider) | Brightness levels per band (1-100) |
 | Custom text | text | User text input (up to 150 chars) |
 | Show FPS | switch | Toggle FPS overlay (replaces custom text) |
 | Simulate precipitation | select | Options: "", "snow", "rain", "wet_snow" |

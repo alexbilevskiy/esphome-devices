@@ -2,7 +2,12 @@ esphome:
   name: weather-station
   friendly_name: weather-station
   on_boot:
-    - lambda: App.set_loop_interval(1);
+    - then:
+        - lambda: App.set_loop_interval(1);
+    - priority: -100
+      then:
+        - script.execute: update_brightness
+
 
 esp32:
   variant: esp32s3
@@ -18,14 +23,16 @@ external_components:
       type: local
       path: components
     components: [weather_station]
-  - source:
-      type: local
-      path: components
-    components: [lvgl_screenshot]
+  # - source:
+  #     type: local
+  #     path: components
+  #   components: [lvgl_screenshot]
 
-psram:
-  mode: octal
-  speed: 80MHz
+# psram:
+#   mode: octal
+#   speed: 80MHz
+
+runtime_stats:
 
 udp:
 packet_transport:
@@ -34,16 +41,13 @@ packet_transport:
   providers:
     - name: presence-bedroom
 
-# i2c:
-#   sda: GPIO21
-#   scl: GPIO47
-#   scan: false
-
 logger:
   level: DEBUG
-  initial_level: DEBUG
+  # initial_level: DEBUG
   logs:
-    esp-idf: INFO
+    esp-idf: ERROR
+    light: ERROR
+    runtime_stats: INFO
 
 api:
 ota:
@@ -64,6 +68,12 @@ globals:
   - id: extra_dim_global
     type: bool
     initial_value: 'false'
+  - id: last_extra_dim
+    type: bool
+    initial_value: 'false'
+  - id: last_auto_brightness
+    type: int
+    initial_value: '-1'
   - id: show_fps
     type: bool
     initial_value: 'false'
@@ -84,13 +94,10 @@ globals:
     initial_value: 'false'
   - id: curve_lux
     type: float[5]
-    initial_value: '{0.0f, 10.0f, 100.0f, 1000.0f, 10000.0f}'
+    initial_value: '{1.0f, 25.0f, 40.0f, 100.0f, 200.0f}'
   - id: curve_bright
-    type: float[5]
-    initial_value: '{1.0f, 3.0f, 10.0f, 30.0f, 100.0f}'
-  - id: curve_lux_ema
-    type: float
-    initial_value: '-1.0f'
+    type: float[6]
+    initial_value: '{1.0f, 3.0f, 25.0f, 40.0f, 50.0f, 70.0f}'
 
 time:
   - platform: homeassistant
@@ -327,14 +334,15 @@ display:
     oe_pin: GPIO18
     clk_pin: GPIO17
 
-lvgl_screenshot:
-  port: 8080
+# lvgl_screenshot:
+#   port: 8080
 
 lvgl:
   id: lvgl_ui
   displays: [matrix]
   buffer_size: 100%
   bg_color: black
+  byte_order: little_endian
   on_draw_end:
     then:
       - lambda: id(lvgl_frame_count) += 1;
@@ -674,13 +682,51 @@ interval:
   - interval: 30s
     then:
       - script.execute: update_brightness
+  # FPS diagnostics: heap layout (internal vs PSRAM) + biggest free blocks.
+  # LVGL draw buffer + HUB75 framebuffer should sit in internal RAM; if the
+  # biggest internal block is small, they may have spilled to PSRAM (slow renders).
+  - interval: 60s
+    then:
+      - lambda: |-
+          ESP_LOGI("diag", "heap: internal free=%zu (biggest=%zu), psram free=%zu (biggest=%zu)",
+                   heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                   heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                   heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
 
 output:
   - platform: template
     id: brightness_output
     type: float
     write_action:
-      - script.execute: update_brightness
+      - lambda: |-
+          // Single actuation path: light level -> panel brightness
+          float level = state;
+          int brightness = (int) roundf(level * 100.0f);
+          int brightness_255 = (int) roundf(level * 255.0f);
+          if (brightness == 1) brightness_255 = 1;
+          if (brightness_255 < 0) brightness_255 = 0;
+          if (brightness_255 > 255) brightness_255 = 255;
+          id(matrix).set_brightness(brightness_255);
+          // extra dim only at level 1; level 0 (manual off) is just dark
+          bool extra_dim = (brightness == 1);
+          id(extra_dim_global) = extra_dim;
+          if (extra_dim != id(last_extra_dim)) {
+            // Widget visibility changes only on extra-dim transitions
+            id(last_extra_dim) = extra_dim;
+            lv_obj_t *widgets[] = {
+              id(date_label), id(temp_inside_label), id(temp_outside_group),
+              id(co2_label), id(humidity_label), id(wind_label),
+              id(forecast_group_1), id(forecast_group_2),
+            };
+            for (auto *w : widgets) {
+              if (extra_dim)
+                lv_obj_add_flag(w, LV_OBJ_FLAG_HIDDEN);
+              else
+                lv_obj_remove_flag(w, LV_OBJ_FLAG_HIDDEN);
+            }
+            ESP_LOGI("brightness", "write, level: %.3f, res: %d, ex: %d (dim changed)", level, brightness, extra_dim);
+          }
   - id: indicator_output_tx
     platform: gpio
     pin:
@@ -698,7 +744,9 @@ light:
     name: "Brightness"
     id: brightness_light
     output: brightness_output
-    restore_mode: RESTORE_DEFAULT_OFF
+    restore_mode: RESTORE_DEFAULT_ON
+    default_transition_length: 0s
+    gamma_correct: 1.0
 
   - platform: esp32_rmt_led_strip
     channel_colors: RGB
@@ -735,50 +783,34 @@ script:
     then:
       - lambda: |-
           int brightness = 0;
-          bool extra_dim = false;
-          bool mode_als = id(auto_brightness_mode).current_option() == "als";
+          bool mode_als = (id(auto_brightness_mode).current_option() == "als");
+          bool mode_manual = (id(auto_brightness_mode).current_option() == "manual");
 
-          auto *l = id(brightness_light);
-          if (l->remote_values.is_on() && l->remote_values.get_brightness() > 0.0f) {
-            // Manual override: untouched
-            brightness = (int) (l->remote_values.get_brightness() * 100.0f);
-            if (brightness <= 1)
-              extra_dim = true;
+          ESP_LOGD("brightness", "select mode: %s, als: %d", id(auto_brightness_mode).current_option().c_str(), mode_als);
+
+          if (mode_manual) {
+            // Manual: the light entity drives the panel via the output write_action
+            return;
           } else if (mode_als && id(ambient_lux).has_state() && !isnan(id(ambient_lux).state)) {
-            // ALS-based: EMA-smooth lux, then piecewise-linear curve
+            // ALS-based: step clamp, 6 bands over 5 lux thresholds
             float lux = id(ambient_lux).state;
-            if (id(curve_lux_ema) < 0.0f)
-              id(curve_lux_ema) = lux;
-            else
-              id(curve_lux_ema) = id(curve_lux_ema) * 0.7f + lux * 0.3f;
-            lux = id(curve_lux_ema);
-
-            float b;
-            if (lux <= id(curve_lux)[0]) {
-              b = id(curve_bright)[0];
-            } else if (lux >= id(curve_lux)[4]) {
-              b = id(curve_bright)[4];
-            } else {
-              b = id(curve_bright)[4];
-              for (int i = 0; i < 4; i++) {
-                if (lux < id(curve_lux)[i + 1]) {
-                  float span = id(curve_lux)[i + 1] - id(curve_lux)[i];
-                  float frac = (lux - id(curve_lux)[i]) / span;
-                  b = id(curve_bright)[i] + frac * (id(curve_bright)[i + 1] - id(curve_bright)[i]);
-                  break;
-                }
+            float b = id(curve_bright)[5];
+            for (int i = 0; i < 5; i++) {
+              if (lux < id(curve_lux)[i]) {
+                b = id(curve_bright)[i];
+                break;
               }
             }
             brightness = (int) roundf(b);
             if (brightness < 1) brightness = 1;
             if (brightness > 100) brightness = 100;
-            extra_dim = (brightness <= 5);
+            ESP_LOGD("brightness", "als, lux: %.2f, res: %d", lux, brightness);
           } else {
             // Time-of-day + sun position
             int hour = id(esptime).now().hour;
             std::string sun = id(sun_state).has_state() ? id(sun_state).state : "";
             if (hour >= 0 && hour < 6) {
-              if (sun == "below_horizon") { brightness = 1; extra_dim = true; }
+              if (sun == "below_horizon") brightness = 1;
               else brightness = 20;
             } else if (hour >= 6 && hour < 9) {
               brightness = (sun == "below_horizon") ? 20 : 50;
@@ -789,37 +821,21 @@ script:
             } else {
               brightness = 60;
             }
+            ESP_LOGD("brightness", "time, hour: %d, sun: %s, res: %d", hour, sun.c_str(), brightness);
           }
 
-          int brightness_255 = (int) round(brightness * 2.55f);
-          if (brightness == 1) brightness_255 = 1;
-          if (brightness_255 < 1) brightness_255 = 1;
-          if (brightness_255 > 255) brightness_255 = 255;
-          id(matrix).set_brightness(brightness_255);
-          id(extra_dim_global) = extra_dim;
-      - if:
-          condition:
-            lambda: "return id(extra_dim_global);"
-          then:
-            - lvgl.widget.hide:
-                - date_label
-                - temp_inside_label
-                - temp_outside_group
-                - co2_label
-                - humidity_label
-                - wind_label
-                - forecast_group_1
-                - forecast_group_2
-          else:
-            - lvgl.widget.show:
-                - date_label
-                - temp_inside_label
-                - temp_outside_group
-                - co2_label
-                - humidity_label
-                - wind_label
-                - forecast_group_1
-                - forecast_group_2
+          // Feedback: light entity reflects the auto brightness (panel actuation
+          // happens in the output write_action). No save, no transition.
+          // Skipped when brightness is unchanged (avoids 1Hz API publish churn).
+          if (brightness != id(last_auto_brightness)) {
+            id(last_auto_brightness) = brightness;
+            auto call = id(brightness_light).make_call();
+            call.set_state(true).set_brightness(brightness / 100.0f);
+            call.set_transition_length(0);
+            call.set_publish(true);
+            call.set_save(false);
+            call.perform();
+          }
 
 switch:
   - platform: template
@@ -844,7 +860,8 @@ select:
     options:
       - "time"
       - "als"
-    initial_option: "time"
+      - "manual"
+    initial_option: "als"
     restore_value: true
     optimistic: true
     on_value:
@@ -911,7 +928,7 @@ number:
     min_value: 0.0
     max_value: 20000.0
     step: 1.0
-    initial_value: 10.0
+    initial_value: 25.0
     restore_value: true
     optimistic: true
     on_value:
@@ -927,7 +944,7 @@ number:
     min_value: 0.0
     max_value: 20000.0
     step: 1.0
-    initial_value: 100.0
+    initial_value: 40.0
     restore_value: true
     optimistic: true
     on_value:
@@ -943,7 +960,7 @@ number:
     min_value: 0.0
     max_value: 20000.0
     step: 1.0
-    initial_value: 1000.0
+    initial_value: 100.0
     restore_value: true
     optimistic: true
     on_value:
@@ -959,7 +976,7 @@ number:
     min_value: 0.0
     max_value: 20000.0
     step: 1.0
-    initial_value: 10000.0
+    initial_value: 200.0
     restore_value: true
     optimistic: true
     on_value:
@@ -1007,7 +1024,7 @@ number:
     min_value: 1.0
     max_value: 100.0
     step: 1.0
-    initial_value: 10.0
+    initial_value: 25.0
     restore_value: true
     optimistic: true
     on_value:
@@ -1023,7 +1040,7 @@ number:
     min_value: 1.0
     max_value: 100.0
     step: 1.0
-    initial_value: 30.0
+    initial_value: 40.0
     restore_value: true
     optimistic: true
     on_value:
@@ -1039,7 +1056,7 @@ number:
     min_value: 1.0
     max_value: 100.0
     step: 1.0
-    initial_value: 100.0
+    initial_value: 50.0
     restore_value: true
     optimistic: true
     on_value:
@@ -1049,6 +1066,22 @@ number:
             if (v < 1.0f) v = 1.0f;
             if (v > 100.0f) v = 100.0f;
             id(curve_bright)[4] = v;
+  - platform: template
+    name: "Curve Brightness 6"
+    id: curve_bright_6
+    min_value: 1.0
+    max_value: 100.0
+    step: 1.0
+    initial_value: 70.0
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            float v = x;
+            if (v < 1.0f) v = 1.0f;
+            if (v > 100.0f) v = 100.0f;
+            id(curve_bright)[5] = v;
 
 button:
   - platform: restart
@@ -1067,7 +1100,7 @@ text:
 
 sensor:
   - platform: packet_transport
-    provider: presence-bedroom
+    provider: esp32-c3-01
     name: "BH1750 Illuminance"
     remote_id: bh1750_lux
     id: ambient_lux
