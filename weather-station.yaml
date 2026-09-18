@@ -6,6 +6,9 @@ esphome:
         - lambda: App.set_loop_interval(1);
     - priority: -100
       then:
+        - lambda: |-
+            id(ws).set_display(id(matrix));
+            lv_obj_invalidate(lv_scr_act());
         - script.execute: update_brightness
 
 
@@ -35,11 +38,12 @@ external_components:
 runtime_stats:
 
 udp:
+
 packet_transport:
   platform: udp
   update_interval: 1s
   providers:
-    - name: presence-bedroom
+    - name: esp32-c3-01
 
 logger:
   level: DEBUG
@@ -83,12 +87,6 @@ globals:
   - id: lvgl_fps
     type: uint32_t
     initial_value: '0'
-  - id: last_canvas_ms
-    type: uint32_t
-    initial_value: '0'
-  - id: interval_fps_ema
-    type: float
-    initial_value: '0.0f'
   - id: api_connected_global
     type: bool
     initial_value: 'false'
@@ -341,11 +339,17 @@ lvgl:
   id: lvgl_ui
   displays: [matrix]
   buffer_size: 100%
+  full_refresh: true
   bg_color: black
   byte_order: little_endian
-  on_draw_end:
+  on_render_ready:
     then:
-      - lambda: id(lvgl_frame_count) += 1;
+      - lambda: |-
+          id(lvgl_frame_count) += 1;
+          lv_draw_buf_t *buf = lv_display_get_buf_active(id(lvgl_ui).get_disp());
+          if (buf != nullptr)
+            id(ws).on_frame_composited((const uint8_t *) buf->data, buf->header.stride,
+                                       buf->header.w, buf->header.h);
   pages:
     - id: main_page
       widgets:
@@ -552,16 +556,6 @@ lvgl:
             text_color: color_date
             text: ""
             hidden: true
-        - canvas:
-            id: particle_canvas
-            x: 0
-            y: 0
-            width: ${panel_width}
-            height: ${panel_height}
-            transparent: true
-            bg_opa: TRANSP
-            border_width: 0
-            pad_all: 0
 
 interval:
   - interval: 1s
@@ -579,7 +573,7 @@ interval:
       - lambda: |-
           id(lvgl_fps) = id(lvgl_frame_count);
           id(lvgl_frame_count) = 0;
-          uint32_t i_fps = (uint32_t) round(id(interval_fps_ema));
+          uint32_t i_fps = (uint32_t) roundf(id(ws).get_render_fps());
 
           if (id(show_fps)) {
             lv_label_set_text(id(custom_text_line1), "");
@@ -653,32 +647,6 @@ interval:
       - lvgl.widget.refresh: forecast_label_1
       - lvgl.widget.refresh: forecast_icon_2
       - lvgl.widget.refresh: forecast_label_2
-  - interval: 20ms
-    then:
-      - lvgl.canvas.fill:
-          id: particle_canvas
-          color: black
-          opa: TRANSP
-      - lambda: |-
-          uint32_t now = millis();
-          if (id(last_canvas_ms) > 0) {
-            uint32_t delta = now - id(last_canvas_ms);
-            if (delta > 0) {
-              float instant_fps = 1000.0f / delta;
-              if (id(interval_fps_ema) < 0.1f)
-                id(interval_fps_ema) = instant_fps;
-              else
-                id(interval_fps_ema) = id(interval_fps_ema) * 0.9f + instant_fps * 0.1f;
-            }
-          }
-          id(last_canvas_ms) = now;
-          const auto &pixels = id(ws).get_pixels();
-          for (const auto &p : pixels) {
-            if (p.x < 0 || p.x >= ${panel_width} || p.y < 0 || p.y >= ${panel_height})
-              continue;
-            lv_color_t c = lv_color_make(p.r, p.g, p.b);
-            lv_canvas_set_px(id(particle_canvas), p.x, p.y, c, LV_OPA_COVER);
-          }
   - interval: 30s
     then:
       - script.execute: update_brightness
@@ -791,20 +759,25 @@ script:
           if (mode_manual) {
             // Manual: the light entity drives the panel via the output write_action
             return;
-          } else if (mode_als && id(ambient_lux).has_state() && !isnan(id(ambient_lux).state)) {
-            // ALS-based: step clamp, 6 bands over 5 lux thresholds
-            float lux = id(ambient_lux).state;
-            float b = id(curve_bright)[5];
-            for (int i = 0; i < 5; i++) {
-              if (lux < id(curve_lux)[i]) {
-                b = id(curve_bright)[i];
-                break;
+          } else if (mode_als) {
+            if (id(ambient_lux).has_state() && !isnan(id(ambient_lux).state)) {
+              // ALS-based: step clamp, 6 bands over 5 lux thresholds
+              float lux = id(ambient_lux).state;
+              float b = id(curve_bright)[5];
+              for (int i = 0; i < 5; i++) {
+                if (lux < id(curve_lux)[i]) {
+                  b = id(curve_bright)[i];
+                  break;
+                }
               }
+              brightness = (int) roundf(b);
+              if (brightness < 1) brightness = 1;
+              if (brightness > 100) brightness = 100;
+              ESP_LOGD("brightness", "als, lux: %.2f, res: %d", lux, brightness);
+            } else {
+              brightness = 5;
+              ESP_LOGD("brightness", "als, lux: NaN, res: %d", brightness);
             }
-            brightness = (int) roundf(b);
-            if (brightness < 1) brightness = 1;
-            if (brightness > 100) brightness = 100;
-            ESP_LOGD("brightness", "als, lux: %.2f, res: %d", lux, brightness);
           } else {
             // Time-of-day + sun position
             int hour = id(esptime).now().hour;

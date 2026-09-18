@@ -32,27 +32,30 @@ Based on an earlier [Python/Raspberry Pi implementation](https://github.com/alex
 
 Two layers work together:
 
-1. **LVGL widgets** (YAML-defined) — labels and images for all text and icon rendering. Positions are hardcoded, no runtime layout engine.
-2. **C++ `weather_station` component** — holds stateful logic for precipitation particles and sun/moon arc positions. Produces a vector of pixels that a YAML interval lambda draws onto a transparent LVGL canvas overlay.
+1. **LVGL widgets** (YAML-defined) — labels and images for all text and icon rendering. Positions are hardcoded, no runtime layout engine. LVGL re-renders only when widgets refresh (~2 full renders/s: 1s clock tick, 5s data ticks).
+2. **C++ `weather_station` component** — holds stateful logic for precipitation particles and sun/moon arc positions. It draws overlay pixels **directly into the HUB75 framebuffer** (bypassing LVGL), paced at a 20ms tick inside its own `loop()`.
 
-This split keeps the component LVGL-agnostic (no UI calls in C++) while allowing per-pixel drawing that LVGL widgets can't do natively.
+This split keeps the component LVGL-agnostic in the sense that it only talks to `display::Display` (never to the LVGL API). The overlay drawing path does not go through LVGL at all — LVGL never sees the particles, so they never trigger invalidations.
 
 ### Rendering pipeline
 
-- LVGL refreshes the display at 16ms intervals (~60 FPS target) via the HUB75 display component. Actual refresh rate is measured via `on_draw_end` trigger (`LV_EVENT_REFR_READY`). The ESPHome main loop interval is set to 1ms (`App.set_loop_interval(1)` on boot) to minimize sleep overhead — without this, the default 16ms loop interval caps effective FPS at ~19.
-- A 20ms interval (50 FPS) clears and redraws the particle canvas from `get_pixels()`. Actual execution rate is measured via EMA of inter-interval delta.
+- LVGL renders the static UI when widgets are invalidated (~2 times/s). The ESPHome main loop interval is set to 1ms (`App.set_loop_interval(1)` on boot) to minimize sleep overhead.
+- The `weather_station` component paces its own 20ms render tick inside `loop()`: erase the previous overlay frame, advance particle state, draw the new frame. All writes go to the HUB75 framebuffer via `draw_pixels_at()` (1x1 RGB565 words).
+- **Background snapshot:** on every real LVGL render (`on_render_ready` → `LV_EVENT_RENDER_READY`, fired only when something was actually rendered), the YAML lambda passes the LVGL draw buffer (`lv_display_get_buf_active()`) to `ws.on_frame_composited()`. The component copies it row-by-row (stride-aware, RGB565) into a background snapshot and redraws the current overlay pixels on top. `full_refresh: true` (single full-size buffer, FULL render mode) makes the buffer a persistent full-screen composited frame: only dirty areas are re-rendered into it, but the buffer always holds the complete frame — exactly what the HUB75 framebuffer holds before overlay drawing. A size guard rejects any snapshot whose dimensions don't match the panel (would be a partial-area render — copying it would corrupt the snapshot).
+- **Erase:** each particle's previous position is restored by writing the background snapshot word back — byte-for-byte the same RGB565 word, through the same `draw_pixels_at()` conversion path, so it reproduces the exact pixel that LVGL composited there (including glyphs under the particle). This is what makes the overlay artifact-free.
+- Before the first snapshot arrives (`bg_valid_ == false`), only drawing happens (no erase) — the HUB75 buffer is zeroed (black) at boot, so this is visually identical.
 - Labels are refreshed on two intervals: 1s for time-sensitive widgets (clock, date, temp outside blinking, FPS display), 5s for the rest.
 - A 30s interval updates brightness based on time-of-day and sun position.
 
 ### Display configuration
 
-The HUB75 display is configured with `update_interval: never` and `auto_clear_enabled: false` — LVGL manages all screen updates. `buffer_size: 100%` ensures the LVGL draw buffer holds a complete frame (needed by the `lvgl_screenshot` component). The 100% buffer in octal PSRAM is sufficient.
+The HUB75 display is configured with `update_interval: never` and `auto_clear_enabled: false` — LVGL manages all screen updates. `buffer_size: 100%` + `full_refresh: true` (single full-size buffer, FULL render mode) is required by the overlay architecture: the buffer is a persistent full-screen composited frame that `weather_station` copies as its background snapshot (and `lvgl_screenshot` reads for debugging). Note: PARTIAL mode (without `full_refresh`) reshapes the buffer to each dirty area (`buf_area = inv_area`, stride per-area in lv_refr.c), so the buffer is NOT an accumulated frame there — this was the cause of a corrupted-snapshot bug (screen-wide garbage, particle erosion, "jumping" widgets) that `full_refresh: true` fixed.
 
 ## File Structure
 
 ```
 /opt/src/esphome/
-├── weather-station.yaml           # main ESPHome config (841 lines)
+├── weather-station.yaml           # main ESPHome config (1191 lines)
 ├── weather-station.md             # this document
 ├── fonts/
 │   ├── win_crox5h.bdf             # clock font (18px, proportional)
@@ -112,7 +115,8 @@ Sun and moon indicators travel along the screen perimeter — upper half when ab
 | custom_text_line1 | font_small (10px) | 1 | 49 | TOP_LEFT | word-wrapped text |
 | custom_text_line2 | font_small | 1 | 54 | TOP_LEFT | word-wrapped text |
 | fps_label | font_small (10px) | 1 | 49 | TOP_LEFT | `L:60 I:50` (replaces custom text when FPS mode on) |
-| particle_canvas | — | 0 | 0 | — | 128x64 transparent overlay |
+
+Particle/sky overlay pixels are drawn by the `weather_station` component directly into the HUB75 framebuffer (no LVGL widget involved).
 
 Right-aligned icon+label pairs use LVGL flex containers (`width: SIZE_CONTENT`, `flex_flow: row`, `pad_column: 1px`) that auto-pack the icon to the left of the label with a 1px gap. When label text changes width, the container auto-resizes and stays anchored to the right edge.
 
@@ -182,16 +186,16 @@ Real-time FPS display showing two metrics, toggled via a `Show FPS` switch entit
 
 | Metric | Label | Source | Measurement |
 |--------|-------|--------|-------------|
-| LVGL refresh rate | `L` | `on_draw_end` trigger (`LV_EVENT_REFR_READY`) | Counts complete refresh cycles per second |
-| Interval execution rate | `I` | 20ms canvas redraw interval | EMA of `1000/delta_ms` between interval firings |
+| LVGL render rate | `L` | `on_render_ready` trigger (`LV_EVENT_RENDER_READY`) | Counts real render cycles per second (~2 when idle: 1s clock + 5s data ticks). Note: `on_draw_end` (`LV_EVENT_REFR_READY`) fires every 16ms refr-timer cycle even with nothing rendered, so it is NOT used for this metric. |
+| Overlay render rate | `I` | `weather_station` 20ms render tick | EMA of `1000/delta_ms` between component render ticks (exposed via `get_render_fps()`) |
 
 When FPS mode is on, the custom text widgets are hidden and replaced by the FPS label at the same position (y=49). FPS is also logged at INFO level every second. FPS label remains visible in extra-dim mode.
 
-The LVGL FPS reflects the actual display refresh rate (driven by the 16ms LVGL refresh timer and ESPHome loop speed). The interval FPS shows the real execution rate of the 20ms particle canvas redraw, revealing delays from WiFi, API traffic, or particle system load.
+`L` shows how often LVGL actually re-renders the UI (it should sit at ~2; spikes when widgets change rapidly). `I` shows the real execution rate of the 20ms overlay render tick, revealing delays from WiFi, API traffic, or particle system load.
 
 ### Precipitation Particles
 
-Animated particle system rendered on a transparent full-screen canvas overlay. Supports three precipitation types:
+Animated particle system drawn by the component directly into the HUB75 framebuffer (overlay layer above LVGL's output). Supports three precipitation types:
 
 | Type | Code | Speed | Color |
 |------|------|-------|-------|
@@ -214,16 +218,28 @@ Wet snow spawns a random mix of rain and wet snow particles per drop.
 
 The `precip_active_` flag resets the spawn timer when precipitation starts, preventing a stale timer from spawning all particles at once.
 
-Canvas updates at 20ms (50 FPS). The component's `loop()` updates particle state continuously; the interval lambda reads `get_pixels()` and draws via `lv_canvas_set_px()`.
+Overlay updates at 20ms (50 FPS), paced inside the component's own `loop()` (main loop runs at 1ms). Each tick: erase previous overlay pixels from the background snapshot, advance particle state, draw new pixels via `display->draw_pixels_at()`. Background snapshot is synced from the LVGL draw buffer on every real render (`on_render_ready`).
 
-#### Performance profile and failed optimization attempts
+#### Performance profile and optimization history
 
-Measured with `runtime_stats:` (per-component loop times): the canvas-driven render path costs ~35ms per LVGL frame during precipitation (~26-29 effective FPS). Every `lv_canvas_set_px`/`lv_canvas.fill` call invalidates the whole full-screen canvas, so each 20ms tick forces a full-frame LVGL software render (background + all labels + ARGB8888 canvas alpha blend) plus the HUB75 per-pixel bit-plane scatter. This is the single dominant cost of the whole device (~92% of main-loop active time). Two alternative architectures were built and tested; both failed and were reverted:
+**Original canvas approach (replaced).** Measured with `runtime_stats:` (per-component loop times): the canvas-driven render path cost ~35ms per LVGL frame during precipitation (~26-29 effective FPS). Every `lv_canvas_set_px`/`lv_canvas.fill` call invalidates the whole full-screen canvas (`lv_obj_invalidate` inside lv_canvas.c, per LVGL docs "this function invalidates the canvas object every time"), so each 20ms tick forced a full-frame LVGL software render (background + all labels + ARGB8888 canvas alpha blend) plus the HUB75 per-pixel bit-plane scatter. This was the single dominant cost of the whole device (~92% of main-loop active time).
+
+**Current approach: direct-to-framebuffer overlay with LVGL-buffer background snapshot.** The key insight that unlocked it: with `full_refresh: true` (single full-size buffer, FULL render mode) the LVGL draw buffer is a persistent full-screen composited frame — dirty areas are re-rendered into it at screen coordinates, and the whole buffer is flushed each cycle. After a real render, `lv_display_get_buf_active()` holds the complete UI frame *without* overlay pixels (LVGL never saw them). Copying it (16 KiB RGB565) into the component's background snapshot provides the exact composited color under every particle — the piece both earlier attempts were missing. The snapshot is taken in `on_render_ready` (`LV_EVENT_RENDER_READY`, fired only when something was actually rendered — unlike `LV_EVENT_REFR_READY`, which fires every 16ms refr-timer cycle regardless), and the current overlay pixels are redrawn on top (the flush overwrote them).
+
+**First attempt of this approach was corrupted (fixed):** without `full_refresh`, PARTIAL render mode reshapes the draw buffer to each dirty area (`buf_area = inv_area`, area-sized stride, lv_refr.c:868-872), so the buffer held the last rendered *strip*, not an accumulated frame. The snapshot copy was garbage across the whole panel: screen-wide glitch pixels, particle erosion restored wrong colors, "jumping" widgets (ghost pixels over labels). Fixed by switching to `full_refresh: true` and adding a w/h guard in `on_frame_composited()` that invalidates the snapshot on any non-full-screen frame.
+
+Result: LVGL renders ~2 times/s (≈18ms full-frame render+flush each) instead of 50 times/s (≈34ms each); the `lvgl` runtime avg drops from ~34.6ms to fractions of a millisecond. Overlay rendering costs ~150 1x1 `draw_pixels_at` calls per 20ms tick (sub-millisecond). Particle animation runs at a steady 50 FPS. Cost: +16 KiB internal RAM for the snapshot, −32 KiB ARGB8888 canvas buffer, full-frame flush only ~2 times/s.
+
+**Status: verified on hardware (2026-09-18), accepted as the final architecture.** No screen-wide glitches, no particle erosion, no widget ghosting; particles render cleanly over labels and custom text. This closes the FPS investigation — earlier failed attempts and the corrupted first iteration are kept below for history only.
+
+**Earlier failed attempts (kept for history):**
 
 1. **Partial invalidation via direct canvas buffer writes** — wrote ARGB8888 pixels straight into the canvas draw buffer (`lv_canvas_get_draw_buf()`) bypassing the invalidating `lv_canvas_set_px`, then invalidated only dirty row bands via `lv_obj_invalidate_area()`. Result: no FPS gain with precipitation (rain spreads over most of the 64 rows within a second, so the ">50% rows dirty → full-screen fallback" branch fired nearly every tick) plus visual artifacts (stale vertical lines: the prev-pixel snapshot was taken at the component's 1kHz loop rate, not at the 20ms draw tick, so most drawn pixels were never erased). Clean 50 FPS without precipitation confirmed the mechanism itself works. Reverted.
-2. **Direct-to-panel drawing (no canvas)** — drew/erased particles straight into the HUB75 framebuffer via `matrix.draw_pixel_at()`, redrawing after `on_draw_end`. Result: stable 50 FPS, but severe artifacts: erasing a moved particle blanks the pixel it crossed over a widget glyph, and widgets don't re-render until their 1s/5s tick — particles "erode" labels pixel-by-pixel. Correctly repairing this requires knowing the LVGL-composited color under each particle, which only a full re-render provides — i.e. the canvas. Reverted.
+2. **Direct-to-panel drawing without a snapshot** — drew/erased particles straight into the HUB75 framebuffer via `matrix.draw_pixel_at()`, redrawing after `on_draw_end`. Result: stable 50 FPS, but severe artifacts: erasing a moved particle blanks the pixel it crossed over a widget glyph, and widgets don't re-render until their 1s/5s tick — particles "erode" labels pixel-by-pixel. The current approach fixes exactly this by restoring erased pixels from the background snapshot. Superseded.
 
 Also rejected by analysis (not tested): particles as individual LVGL widgets — LVGL's invalid-area buffer is 32 entries (`LV_INV_BUF_SIZE`); the 33rd area resets to a full-screen invalidation, and 40-74 particles × old+new positions overflow it every refresh. Strictly worse than the canvas.
+
+Rejected by research (not tested): RGB565A8 canvas format (ESPHome canvas codegen only supports ARGB8888-transparent / RGB565-opaque, and it would still cost a full blend + scatter per tick); LVGL SW-draw asm optimizations (LVGL 9.5 has no Xtensa/ESP32-S3 asm paths — only NEON/Helium/RISC-V); an esp-hub75 framebuffer readback API (unnecessary — the LVGL buffer is readable via public API); PPA (LVGL 9.5 supports it on ESP32-P4 only). Note: `full_refresh: true` was initially marked as unnecessary based on a wrong assumption that a PARTIAL-mode full-size buffer accumulates the frame — it turned out to be required (see the corrupted-snapshot fix above).
 
 Accepted micro-optimizations (kept): `byte_order: little_endian` on the `lvgl:` block (skips the per-frame RGB565 byte swap; colors verified correct, no measurable FPS gain) and the brightness write action hiding/showing widgets only on extra-dim transitions, plus the auto-brightness feedback call skipping publication when the computed brightness is unchanged.
 
@@ -397,7 +413,18 @@ struct Pixel {
 ### Public API
 
 ```cpp
-// Pixel vector for YAML lambda to draw
+// Attach the display for direct-to-framebuffer overlay rendering (from on_boot)
+void set_display(display::Display *display);
+
+// Background snapshot sync: called from the LVGL on_render_ready trigger with
+// the LVGL draw buffer (RGB565, stride in bytes). Copies it into the internal
+// snapshot and redraws the current overlay pixels on top.
+void on_frame_composited(const uint8_t *data, uint32_t stride_bytes);
+
+// Overlay render tick rate (EMA), ~50 at the 20ms cadence
+float get_render_fps() const;
+
+// Legacy pixel source for the YAML-canvas rendering approach (esp32-hub75.yaml)
 const std::vector<Pixel> &get_pixels() const;
 
 // Simulation setters (from template entities)
@@ -419,11 +446,13 @@ void set_moon_setting(const std::string &v);
 
 ### loop() method
 
-Called by ESPHome's main loop (every few ms). Clears the pixel vector, then:
-1. `update_sky_()` — calculates sun/moon positions using sine-curve sky model and appends pixels to the vector (including horizon indicators)
-2. `update_particles_()` — updates particle state (spawn, movement, removal) and appends pixels to the vector
+Paces the 20ms overlay render tick (main loop runs at 1ms). Each tick:
+1. `refresh_sky_cache_()` — at most once per second: parses HA ISO datetime strings and precomputes sun/moon/horizon overlay pixels (cached in `sky_pixels_`)
+2. Erase phase — restores background snapshot words over all `prev_pixels_` positions (exact RGB565 restore, glyph-safe)
+3. Build phase — copies `sky_pixels_` and runs `update_particles_()` into `pixels_`
+4. Draw phase — draws `pixels_` via `display->draw_pixels_at()` (1x1 RGB565), then `prev_pixels_` ← `pixels_`
 
-The YAML interval lambda (20ms) reads `get_pixels()` and draws each pixel via `lv_canvas_set_px()`. This keeps the component LVGL-agnostic.
+If no display is attached (legacy YAML-canvas configs), `loop()` only maintains `pixels_` for `get_pixels()` and never draws.
 
 ### Key implementation details
 
@@ -452,9 +481,9 @@ Colors use raw 0-255 integer values (`red_int`/`green_int`/`blue_int`) to match 
 
 ## Not Yet Implemented
 
-- **RGB light mode** — fill entire display with a solid color (would use `lv_canvas_fill_bg` on the overlay canvas, hiding all labels)
-- **Debug borders** — toggle rectangles around widget bounds on the canvas (would use `lv_canvas_draw_rectangle`)
+- **RGB light mode** — fill entire display with a solid color (would be a direct framebuffer fill in the component, hiding all labels)
+- **Debug borders** — toggle rectangles around widget bounds (would be drawn by the component into the framebuffer)
 
 ## Debugging
 
-The `lvgl_screenshot` component serves the LVGL canvas over HTTP on port 8080 as a PNG image, useful for remote debugging without physical access to the panel.
+The `lvgl_screenshot` component serves the LVGL draw buffer over HTTP on port 8080 as a PNG image, useful for remote debugging without physical access to the panel. Note: it shows the LVGL-composited UI only — the particle/sky overlay lives in the HUB75 framebuffer and is not part of the screenshot.

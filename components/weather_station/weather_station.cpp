@@ -1,5 +1,6 @@
 #include "weather_station.h"
 #include "esphome/core/log.h"
+#include <cstring>
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
@@ -11,6 +12,11 @@ static const char *const TAG = "weather_station";
 static const char *TYPE_RAIN = "rain";
 static const char *TYPE_WET_SNOW = "wet_snow";
 static const char *TYPE_SNOW = "snow";
+
+// LVGL RGB565 (no byte swap) word from 8-bit channels, matching lv_color_make.
+static inline uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b) {
+  return (uint16_t) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+}
 
 static int rand_int(int min_val, int max_val) {
   if (min_val >= max_val)
@@ -241,7 +247,7 @@ void WeatherStation::update_sky_border_() {
   if (!this->sun_rising_.empty() && !this->sun_setting_.empty()) {
     int64_t sr = this->parse_iso_datetime_(this->sun_rising_);
     int64_t ss = this->parse_iso_datetime_(this->sun_setting_);
-    int64_t now = (int64_t) time(nullptr);
+    int64_t now = (int64_t) ::time(nullptr);
 
     if (sr > 0 && ss > 0 && now > 0) {
       int64_t day_len;
@@ -286,7 +292,7 @@ void WeatherStation::update_sky_border_() {
   if (!this->moon_rising_.empty() && !this->moon_setting_.empty()) {
     int64_t mr = this->parse_iso_datetime_(this->moon_rising_);
     int64_t ms = this->parse_iso_datetime_(this->moon_setting_);
-    int64_t now = (int64_t) time(nullptr);
+    int64_t now = (int64_t) ::time(nullptr);
 
     if (mr > 0 && ms > 0 && now > 0) {
       int64_t up_len;
@@ -328,18 +334,19 @@ void WeatherStation::update_sky_border_() {
   }
 }
 
-void WeatherStation::update_sky_() {
+void WeatherStation::refresh_sky_cache_() {
+  this->sky_pixels_.clear();
   int horizon = this->panel_h_ / 2;
 
   // Horizon indicators: one pixel at each end of the horizon line
-  this->pixels_.push_back({0, (int16_t) horizon, 40, 40, 40});
-  this->pixels_.push_back({(int16_t) (this->panel_w_ - 1), (int16_t) horizon, 40, 40, 40});
+  this->sky_pixels_.push_back({0, (int16_t) horizon, 40, 40, 40});
+  this->sky_pixels_.push_back({(int16_t) (this->panel_w_ - 1), (int16_t) horizon, 40, 40, 40});
 
   // Sun
   if (!this->sun_rising_.empty() && !this->sun_setting_.empty()) {
     int64_t sr = this->parse_iso_datetime_(this->sun_rising_);
     int64_t ss = this->parse_iso_datetime_(this->sun_setting_);
-    int64_t now = (int64_t) time(nullptr);
+    int64_t now = (int64_t) ::time(nullptr);
 
     if (sr > 0 && ss > 0 && now > 0) {
       int sx, sy;
@@ -347,12 +354,12 @@ void WeatherStation::update_sky_() {
       this->sky_position_(sr, ss, now, sx, sy, visible);
 
       if (sx >= 0 && sx < this->panel_w_ && sy >= 0 && sy < this->panel_h_) {
-        this->pixels_.push_back({(int16_t) sx, (int16_t) sy, 255, 220, 0});
+        this->sky_pixels_.push_back({(int16_t) sx, (int16_t) sy, 255, 220, 0});
         int neighbors[2][2];
         int ncount;
         this->sky_neighbors_(sx, sy, neighbors, ncount);
         for (int i = 0; i < ncount; i++) {
-          this->pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 255, 220, 0});
+          this->sky_pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 255, 220, 0});
         }
       }
     }
@@ -362,7 +369,7 @@ void WeatherStation::update_sky_() {
   if (!this->moon_rising_.empty() && !this->moon_setting_.empty()) {
     int64_t mr = this->parse_iso_datetime_(this->moon_rising_);
     int64_t ms = this->parse_iso_datetime_(this->moon_setting_);
-    int64_t now = (int64_t) time(nullptr);
+    int64_t now = (int64_t) ::time(nullptr);
 
     if (mr > 0 && ms > 0 && now > 0) {
       int mx, my;
@@ -370,12 +377,12 @@ void WeatherStation::update_sky_() {
       this->sky_position_(mr, ms, now, mx, my, visible);
 
       if (mx >= 0 && mx < this->panel_w_ && my >= 0 && my < this->panel_h_) {
-        this->pixels_.push_back({(int16_t) mx, (int16_t) my, 180, 200, 255});
+        this->sky_pixels_.push_back({(int16_t) mx, (int16_t) my, 180, 200, 255});
         int neighbors[2][2];
         int ncount;
         this->sky_neighbors_(mx, my, neighbors, ncount);
         for (int i = 0; i < ncount; i++) {
-          this->pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 180, 200, 255});
+          this->sky_pixels_.push_back({(int16_t) neighbors[i][0], (int16_t) neighbors[i][1], 180, 200, 255});
         }
       }
     }
@@ -387,6 +394,104 @@ void WeatherStation::setup() {
   this->spawn_timer_ = millis();
   this->particles_.reserve(64);
   this->pixels_.reserve(256);
+  this->prev_pixels_.reserve(256);
+  this->sky_pixels_.reserve(16);
+  this->bg_ = std::make_unique<uint16_t[]>((size_t) this->panel_w_ * (size_t) this->panel_h_);
+  this->last_render_ms_ = millis() - 20;  // first render tick fires immediately
+}
+
+void WeatherStation::draw_pixel_raw_(int x, int y, uint16_t color565) {
+  if (this->display_ == nullptr)
+    return;
+  if (x < 0 || x >= this->panel_w_ || y < 0 || y >= this->panel_h_)
+    return;
+  this->display_->draw_pixels_at(x, y, 1, 1, reinterpret_cast<const uint8_t *>(&color565),
+                                 display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false);
+}
+
+void WeatherStation::on_frame_composited(const uint8_t *data, uint32_t stride_bytes, uint32_t buf_w, uint32_t buf_h) {
+  if (this->bg_ == nullptr || data == nullptr)
+    return;
+  if (buf_w != (uint32_t) this->panel_w_ || buf_h != (uint32_t) this->panel_h_) {
+    // Not a full-screen frame (partial render) — a snapshot copy would be
+    // garbage. Invalidate instead of corrupting.
+    this->bg_valid_ = false;
+    return;
+  }
+  const size_t row_bytes = (size_t) this->panel_w_ * 2;
+  for (int y = 0; y < this->panel_h_; y++) {
+    std::memcpy(this->bg_.get() + (size_t) y * this->panel_w_, data + (size_t) y * stride_bytes, row_bytes);
+  }
+  bool was_valid = this->bg_valid_;
+  this->bg_valid_ = true;
+  if (!was_valid)
+    return;  // first snapshot: nothing drawn yet
+  // The LVGL flush overwrote our overlay pixels in the dirty areas; draw them back.
+  for (const auto &p : this->prev_pixels_) {
+    this->draw_pixel_raw_(p.x, p.y, rgb888_to_rgb565(p.r, p.g, p.b));
+  }
+}
+
+void WeatherStation::render_() {
+  uint32_t now = millis();
+  if (this->sky_pixels_.empty() || (uint32_t) (now - this->last_sky_ms_) >= 1000) {
+    this->last_sky_ms_ = now;
+    this->refresh_sky_cache_();
+  }
+
+  // Erase the previous frame by restoring background snapshot words. This is
+  // exact: the snapshot is copied byte-for-byte from the LVGL draw buffer after
+  // each real render, so particles crossing glyphs restore the glyph pixels.
+  if (this->bg_valid_) {
+    for (const auto &p : this->prev_pixels_) {
+      if (p.x < 0 || p.x >= this->panel_w_ || p.y < 0 || p.y >= this->panel_h_)
+        continue;
+      this->draw_pixel_raw_(p.x, p.y, this->bg_[(size_t) p.y * this->panel_w_ + p.x]);
+    }
+  }
+
+  // Compute the new frame
+  this->pixels_.clear();
+  this->pixels_.insert(this->pixels_.end(), this->sky_pixels_.begin(), this->sky_pixels_.end());
+  this->update_particles_();
+
+  // Draw the new frame
+  for (const auto &p : this->pixels_) {
+    this->draw_pixel_raw_(p.x, p.y, rgb888_to_rgb565(p.r, p.g, p.b));
+  }
+
+  std::swap(this->prev_pixels_, this->pixels_);
+  this->pixels_.clear();
+}
+
+void WeatherStation::loop() {
+  if (this->display_ == nullptr || this->bg_ == nullptr) {
+    // Legacy mode (no display attached, e.g. the YAML-canvas config): keep
+    // updating pixels_ every loop so get_pixels() stays live.
+    this->pixels_.clear();
+    uint32_t now = millis();
+    if (this->sky_pixels_.empty() || (uint32_t) (now - this->last_sky_ms_) >= 1000) {
+      this->last_sky_ms_ = now;
+      this->refresh_sky_cache_();
+    }
+    this->pixels_.insert(this->pixels_.end(), this->sky_pixels_.begin(), this->sky_pixels_.end());
+    this->update_particles_();
+    return;
+  }
+  uint32_t now = millis();
+  uint32_t delta = now - this->last_render_ms_;
+  if (delta < 20)
+    return;
+  this->last_render_ms_ = now;
+  // EMA of the actual render tick rate (target 50 at the 20ms cadence)
+  if (delta > 0 && delta <= 1000) {
+    float instant_fps = 1000.0f / (float) delta;
+    if (this->render_fps_ema_ < 0.1f)
+      this->render_fps_ema_ = instant_fps;
+    else
+      this->render_fps_ema_ = this->render_fps_ema_ * 0.9f + instant_fps * 0.1f;
+  }
+  this->render_();
 }
 
 void WeatherStation::get_color_for_precip_(const char *type, uint8_t &r, uint8_t &g, uint8_t &b) {
@@ -478,13 +583,6 @@ void WeatherStation::update_particles_() {
   if (to_spawn > max_drops)
     to_spawn = max_drops;
 
-  static uint32_t last_dbg = 0;
-  if (now - last_dbg > 1000) {
-    ESP_LOGI(TAG, "now=%lu spawn_timer=%.1f elapsed=%.1f interval_ms=%.1f to_spawn=%d particles=%d max_drops=%d",
-             now, this->spawn_timer_, elapsed, interval_ms, to_spawn, (int) this->particles_.size(), max_drops);
-    last_dbg = now;
-  }
-
   for (int s = 0; s < to_spawn && (int) this->particles_.size() < max_drops; s++) {
     const char *drop_type;
     float speed;
@@ -560,12 +658,6 @@ void WeatherStation::update_particles_() {
     if (f.x >= this->panel_w_)
       f.x -= this->panel_w_;
   }
-}
-
-void WeatherStation::loop() {
-  this->pixels_.clear();
-  this->update_sky_();
-  this->update_particles_();
 }
 
 }  // namespace esphome::weather_station
