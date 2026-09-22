@@ -451,7 +451,8 @@ lvgl:
             text_font: font_reg
             text_color: color_wind
             text: !lambda |-
-              if (!id(wind_bearing).has_state() || !id(wind_speed_weather).has_state())
+              if (!id(wind_bearing).has_state() || !id(wind_speed_real).has_state() ||
+                  isnan(id(wind_speed_real).state))
                 return std::string("N/A");
               int bearing = (int) strtol(id(wind_bearing).state.c_str(), nullptr, 10);
               const char *dir;
@@ -467,7 +468,7 @@ lvgl:
                 case 360: dir = "n"; break;
                 default:  dir = "?";
               }
-              float speed = strtof(id(wind_speed_weather).state.c_str(), nullptr);
+              float speed = id(wind_speed_real).state;
               return str_sprintf("%s %dm/s", dir, (int) round(speed));
         - obj:
             id: forecast_group_1
@@ -1145,10 +1146,6 @@ text_sensor:
     id: wind_bearing
     entity_id: weather.yandex_weather
     attribute: wind_bearing
-  - platform: homeassistant
-    id: wind_speed_weather
-    entity_id: weather.yandex_weather
-    attribute: wind_speed
   - platform: homeassistant
     id: sun_state
     entity_id: sun.sun

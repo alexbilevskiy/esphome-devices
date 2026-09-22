@@ -164,7 +164,7 @@ Indoor humidity percentage, formatted as `45%`. Left-aligned.
 
 ### Wind
 
-Wind direction and speed, formatted as `ne 5m/s`. Direction is derived from bearing degrees via a switch statement (0=calm, 45=ne, 90=e, 135=se, 180=s, 225=sw, 270=w, 315=nw, 360=n). Unknown bearings show `?`. Speed comes from Yandex Weather's `wind_speed` attribute. Right-aligned.
+Wind direction and speed, formatted as `ne 5m/s`. Direction is derived from bearing degrees via a switch statement (0=calm, 45=ne, 90=e, 135=se, 180=s, 225=sw, 270=w, 315=nw, 360=n). Unknown bearings show `?`. Speed comes from `sensor.wind_speed` — the same source the particle wind drift uses, so the label and the rain always agree. Right-aligned.
 
 ### Forecast
 
@@ -207,7 +207,7 @@ Wet snow spawns a random mix of rain and wet snow particles per drop.
 
 **Particle physics:**
 - Spawn rate: `max_drops = panel_height * strength * 0.5`, spawn interval = `panel_height / (max_drops * spawn_speed)`
-- Wind drift: horizontal step based on wind speed (0-10 m/s: 1px every N frames; 10+: N px every frame)
+- Wind drift: quadratic — `ratio = (min(wind, 9) / 9)^2` px sideways per px fallen (45° at 9 m/s, clamped above; e.g. 3 m/s → ~7 px over the full panel height). Applied to rain and wet-snow rain drops; snow uses a random ±1 px walk and is unaffected by wind
 - Each particle has an independent timer that advances by `distance * delay_ms` (not snapped to current time) to prevent lockstep/waves from variable loop frequency
 - Particles wrap horizontally around the panel
 - Particles are removed when they pass the bottom edge
@@ -335,7 +335,6 @@ All data flows via ESPHome native API (no MQTT, no HTTP polling). HA entities ar
 | humidity | sensor.aqara_weather_02_humidity | sensor | humidity_label |
 | current_icon | sensor.fact_icon | text_sensor | weather_icon |
 | wind_bearing | weather.yandex_weather (attr: wind_bearing) | text_sensor | wind_label |
-| wind_speed_weather | weather.yandex_weather (attr: wind_speed) | text_sensor | wind_label |
 | sun_state | sun.sun | text_sensor | brightness logic (`time` mode) |
 | sun_rising | sun.sun (attr: next_rising) | text_sensor | sky arc (sun) |
 | sun_setting | sun.sun (attr: next_setting) | text_sensor | sky arc (sun) |
@@ -343,7 +342,7 @@ All data flows via ESPHome native API (no MQTT, no HTTP polling). HA entities ar
 | moon_setting | sensor.home_moon_set | text_sensor | sky arc (moon) |
 | precip_type | sensor.precipitation_type | sensor | particle system |
 | precip_strength | sensor.precipitation_strength | sensor | particle system |
-| wind_speed_real | sensor.wind_speed | sensor | particle system (wind drift) |
+| wind_speed_real | sensor.wind_speed | sensor | wind_label, particle system (wind drift) |
 | forecast_temp_1 | sensor.forecast_temp_1 (HA template) | sensor | forecast_label_1 |
 | forecast_icon_1_state | sensor.forecast_icon_1 (HA template) | text_sensor | forecast_icon_1 |
 | forecast_period_1 | sensor.forecast_period_1 (HA template) | text_sensor | forecast_label_1 |
