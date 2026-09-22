@@ -1,0 +1,53 @@
+esphome:
+  name: flipdot-display
+  friendly_name: flipdot-display
+
+esp32:
+  board: lolin_s2_mini
+  variant: esp32s2
+  framework:
+    type: esp-idf
+
+
+logger:
+  # baud_rate: 0
+
+api:
+ota:
+  platform: esphome
+safe_mode:
+  disabled: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  post_connect_roaming: false
+  power_save_mode: none
+
+light:
+  - platform: esp32_rmt_led_strip
+    channel_colors: RGB
+    chipset: ws2811
+    pin: GPIO16
+    num_leds: 42
+    name: "Test display"
+    default_transition_length: 0s
+    # rmt_symbols: 48
+
+button:
+  - platform: restart
+    name: "Reboot"
+
+sensor:
+  - platform: uptime
+    name: Uptime
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+  - platform: internal_temperature
+    name: "Internal Temperature"
+
+status_led:
+  pin:
+    number: GPIO15
+    inverted: false
