@@ -563,17 +563,13 @@ void WeatherStation::update_particles_() {
   }
   float interval_ms = (this->panel_h_ / (max_drops * spawn_speed)) * 1000.0f;
 
-  int horizontal_step;
-  int horizontal_every;
-  if (wind_speed == 0) {
-    horizontal_step = 0;
-    horizontal_every = 1;
-  } else if (wind_speed <= 10) {
-    horizontal_step = 1;
-    horizontal_every = std::max(1, (int) (10.0f / wind_speed));
-  } else {
-    horizontal_step = wind_speed / 10;
-    horizontal_every = 1;
+  // Quadratic wind drift: ratio peaks at 1.0 px/px (45 deg) at wind_max,
+  // clamped above it. Panel-wide horizontal travel: (wind/9)^2 * 64 px.
+  const float wind_max = 9.0f;
+  float horizontal_ratio = 0.0f;
+  if (wind_speed > 0) {
+    float w = std::min((float) wind_speed / wind_max, 1.0f);
+    horizontal_ratio = w * w;
   }
 
   uint32_t now = millis();
@@ -637,8 +633,8 @@ void WeatherStation::update_particles_() {
 
     if (f.type == TYPE_RAIN) {
       f.y += distance;
-      if (horizontal_step > 0) {
-        f.h_accum += (float) (distance * horizontal_step) / (float) horizontal_every;
+      if (horizontal_ratio > 0.0f) {
+        f.h_accum += (float) distance * horizontal_ratio;
         int dx = (int) f.h_accum;
         f.x += dx;
         f.h_accum -= dx;
