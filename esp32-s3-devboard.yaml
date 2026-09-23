@@ -11,6 +11,12 @@ psram:
   mode: octal
   speed: 80MHz
 
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [spwm]
+
 logger:
   baud_rate: 115200
 
@@ -32,6 +38,36 @@ wifi:
 button:
   - platform: restart
     name: "Reboot"
+
+display:
+  - platform: spwm
+    id: matrix
+    panel_width: 128
+    panel_height: 64
+    scan_rows: 32
+    r1_pin: GPIO4
+    g1_pin: GPIO1
+    b1_pin: GPIO5
+    r2_pin: GPIO6
+    g2_pin: GPIO2
+    b2_pin: GPIO7
+    a_pin: GPIO15
+    b_pin: GPIO41
+    c_pin: GPIO16
+    d_pin: GPIO40
+    e_pin: GPIO42
+    lat_pin: GPIO39
+    oe_pin: GPIO18
+    clk_pin: GPIO17
+    update_interval: 500ms
+    lambda: |-
+      auto red = Color(255, 0, 0);
+      auto green = Color(0, 255, 0);
+      auto blue = Color(0, 0, 255);
+      it.fill(Color::BLACK);
+      it.rectangle(0, 0, it.get_width(), it.get_height(), red);
+      it.line(0, 0, it.get_width(), it.get_height(), green);
+      it.line(0, it.get_height(), it.get_width(), 0, blue);
 
 sensor:
   - platform: uptime

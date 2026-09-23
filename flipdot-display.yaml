@@ -8,6 +8,11 @@ esp32:
   framework:
     type: esp-idf
 
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [flipdot_display]
 
 logger:
   # baud_rate: 0
@@ -25,19 +30,340 @@ wifi:
   post_connect_roaming: false
   power_save_mode: none
 
-light:
-  - platform: esp32_rmt_led_strip
-    channel_colors: RGB
-    chipset: ws2811
-    pin: GPIO16
-    num_leds: 42
-    name: "Test display"
-    default_transition_length: 0s
-    # rmt_symbols: 48
+# --- display mode ---
+# connection: dmx — DMX512 over RS-485 through an external transceiver:
+#   ESP GPIO18 -> transceiver DI, GPIO33 -> transceiver DE, transceiver A/B ->
+#   module A/B. The frame always carries the full universe (start code 0x00 +
+#   512 slots); the modules' windows (the highest one ends at slot 384, #6's
+#   decoder) live inside it.
+# connection: single_wire — the TM1824 chain driven directly:
+#   pin: GPIO16, optionally eot_level / rmt_symbols.
+# Bench: the 3x2 field (6 modules). Top row right-to-left: the kit's #4 (all
+# 16 quads reflashed with the pulse-then-coast firmware, pulse default 50 ms)
+# in the first (rightmost) position, #2 (reflashed too, pulse default 100 ms)
+# in the middle, #3 (still the stock firmware) on the left; bottom row
+# left-to-right: #5, #1, #6 (all 16 quads each reflashed with the
+# pulse-then-coast firmware).
 
 button:
   - platform: restart
     name: "Reboot"
+
+  - platform: template
+    name: "Boot wipe"
+    on_press:
+      # re-run the boot sequence: all white (6 s) -> all black (6 s) -> back
+      # to the clock, or to the black field if the Clock switch is off
+      - lambda: |-
+          id(boot_wipe) = 2;
+          id(wipe_hold) = 30;
+      - component.update: flipdot
+
+  - platform: template
+    name: "Exercise pixel x10"
+    on_press:
+      # snapshot the coordinates and toggle that dot 10 times (one per 200 ms
+      # gate step, ending black); an active boot wipe finishes first, the
+      # exercise overrides the walking pixel and the clock for its run
+      - lambda: |-
+          id(ex_x) = (int) id(num_x).state;
+          id(ex_y) = (int) id(num_y).state;
+          id(ex_left) = 10;
+          id(ex_on) = false;
+      - component.update: flipdot
+
+# --- display mode ---
+# Transmitter is selected in the display section (connection: dmx | single_wire).
+
+time:
+  - platform: homeassistant
+    id: esptime
+    timezone: Europe/Moscow
+
+font:
+  - file: "fonts/helvR08.bdf"
+    id: font_reg
+    size: 8
+  - file: "fonts/b10.bdf"
+    id: font_small
+    size: 10
+    glyphsets:
+      - GF_Latin_Core
+      - GF_Greek_Core
+      - GF_Cyrillic_Core
+
+globals:
+  - id: boot_wipe
+    type: int
+    restore_value: no
+    initial_value: '2'
+  - id: wipe_hold
+    type: int
+    restore_value: no
+    initial_value: '30'
+  - id: clock_on
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+  - id: pixel_mode
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: ex_x
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: ex_y
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: ex_left
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: ex_on
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+display:
+  - platform: flipdot_display
+    id: flipdot
+    connection: dmx     # dmx | single_wire (single_wire uses pin only, no de_pin)
+    pin: GPIO18
+    de_pin: GPIO33
+    cols: 3            # blocks per row
+    rows: 2            # block rows: the 3x2 field
+    # Factory module positions in the component's block (chain) order. The
+    # chain snakes: block row 0 is scanned right-to-left, row 1 left-to-right.
+    # Windows travel with the modules: #4 keeps its factory 193..256 wherever
+    # it is mounted; #2 -> 65..128, #3 -> 129..192, #5 -> 257..320,
+    # #1 -> 1..64, #6 -> 321..384.
+    # Physical placement: top row right-to-left 4, 2, 3; bottom row
+    # left-to-right 5, 1, 6 (module 5 is the bottom-left one).
+    module_order: [4, 2, 3, 5, 1, 6]
+    block_width: 8
+    block_height: 8
+    on_level: 0        # byte for drawn (on) pixels: the release byte -> light dots
+    off_level: 255     # byte for background (off) pixels: the driven byte -> dark dots
+    # Throttled switching (see flipdot-display.md "Throttled switching"):
+    # the frame diff is sent in batches of at most `concurrency` changed dots
+    # every `step_interval`, ordered by `switching_effect`. Defaults commented
+    # out = the classic behavior (every transition is a single frame).
+    concurrency: 8
+    step_interval: 100ms
+    switching_effect: none   # none | wave | random
+    update_interval: 25ms
+    lambda: |-
+      // One render per 25 ms tick (the DMX frame floor); dirty tracking keeps
+      // the wire silent while the picture is static. Animated modes advance
+      // on their own 200 ms gate (last_step) — that is the STC8G's real
+      // cadence floor (duty detection ~12 ms + the 100 ms coil pulse);
+      // faster steps would be filtered by its duty debounce and never flip
+      // a dot. The ant animation gates itself slower instead, through the
+      // runtime-adjustable "Anim Step" number (1-60 s). Identical re-renders
+      // between steps send nothing.
+      static uint32_t last_step = 0;
+      const uint32_t now_ms = millis();
+      const bool step_due = now_ms - last_step >= 200;
+      // boot wipe: two held phases — all white (matches the TM1824 power-on
+      // field, releases the coils), then all black — so both dot ends get
+      // visited and every dot ends up in a known magnetic position. Each
+      // phase is held 30 gate steps (6 s): a full-field throttled transition
+      // takes ~4.8 s (48 batches x 100 ms), and the display component
+      // rebuilds its queue on every update — a phase that ends early would
+      // abort its own sweep mid-way. boot_wipe: 2 = white phase, 1 = black
+      // phase, 0 = done. The "Boot wipe" button restarts the sequence.
+      if (id(boot_wipe) > 0) {
+        if (step_due) {
+          if (id(wipe_hold) > 0) {
+            id(wipe_hold)--;
+          } else {
+            id(boot_wipe)--;
+            id(wipe_hold) = 30;  // WIPE_HOLD_STEPS
+          }
+          last_step = now_ms;
+        }
+        if (id(boot_wipe) == 2)
+          it.fill(Color::WHITE);  // all pixels on -> the release byte
+        // boot_wipe == 1: render nothing — the auto-cleared black background
+        return;
+      }
+      // manual exercise: toggle the pixel at (ex_x, ex_y) 10 times, one per
+      // gate step, ending black. The "Exercise pixel x10" button arms it.
+      if (id(ex_left) > 0) {
+        if (step_due) {
+          id(ex_on) = !id(ex_on);
+          id(ex_left)--;
+          last_step = now_ms;
+        }
+        if (id(ex_on))
+          it.draw_pixel_at(id(ex_x), id(ex_y), Color::WHITE);
+        return;
+      }
+      // bench: single pixel running a serpentine path over the whole screen
+      // ("Walking pixel" switch); dark background, one light dot, one hop
+      // per gate step.
+      if (id(pixel_mode)) {
+        static uint16_t pos = 0;
+        const int w = it.get_width();
+        const int total = w * it.get_height();
+        const int y = pos / w;
+        const int xr = pos % w;
+        const int x = (y % 2 == 0) ? xr : w - 1 - xr;
+        it.draw_pixel_at(x, y);
+        if (step_due) {
+          pos = (pos + 1) % total;
+          last_step = now_ms;
+        }
+        return;
+      }
+      // clock off: hold the project look — the plain black background field
+      if (!id(clock_on)) {
+        it.fill(Color::BLACK);
+        return;
+      }
+      esphome::ESPTime now = id(esptime).now();
+      it.strftime(1, -1, id(font_small), "%H", now);
+      it.print(10, -1, id(font_small), ":");
+      it.strftime(14, -1, id(font_small), "%M", now);
+      // second block row: the ant animation and the date share it and are
+      // mutually exclusive (the switches cross-turn each other off; if both
+      // ever end up on, the animation wins)
+      if (id(sw_anim).state) {
+        // two Langton ants launched as a 180°-rotated pair — the pattern
+        // stays centrally symmetric forever (the flip/turn/move rules are
+        // rotation-equivariant). An ant inverts the cell it stands on
+        // (white -> turn right, black -> turn left) and steps forward,
+        // wrapping toroidally. One step inverts exactly 2 dots, so dirty
+        // tracking keeps the wire silent between steps. The state lives in
+        // function-local statics: turning the switch off freezes it, turning
+        // it back on resumes (an overdue step fires once immediately).
+        static const int8_t DX[4] = {0, 1, 0, -1};
+        static const int8_t DY[4] = {-1, 0, 1, 0};
+        static uint8_t grid[8][24] = {};
+        static int8_t ax[2] = {11, 12};
+        static int8_t ay[2] = {4, 3};
+        static uint8_t ad[2] = {1, 3};  // dirs E and W — the mirrored pair
+        static uint32_t last_anim = 0;
+        uint32_t step_ms = (uint32_t) (id(num_anim_step).state * 1000.0f);
+        if (step_ms < 1000)
+          step_ms = 1000;  // a 0 from the UI must not machine-gun the ants
+        if (millis() - last_anim >= step_ms) {
+          last_anim = millis();
+          for (uint8_t i = 0; i < 2; i++) {
+            const uint8_t on = grid[ay[i]][ax[i]];
+            grid[ay[i]][ax[i]] ^= 1;
+            ad[i] = (ad[i] + (on ? 1 : 3)) & 3;
+            ax[i] = (int8_t) ((ax[i] + DX[ad[i]] + 24) % 24);
+            ay[i] = (int8_t) ((ay[i] + DY[ad[i]] + 8) % 8);
+          }
+        }
+        for (uint8_t y = 0; y < 8; y++)
+          for (uint8_t x = 0; x < 24; x++)
+            if (grid[y][x])
+              it.draw_pixel_at(x, y + 8);
+        return;
+      }
+      if (id(sw_date).state) {
+        // date on the second block row, pulled up to the clock: y=6 puts the
+        // ink at y=8 (b10 bitmaps carry two empty top rows), flush with the
+        // row top instead of 1 px below it. Day at x=0, month at x=10 — no
+        // left or right margins: "29" ink columns 0..8, "Sep" ink 10..23, the
+        // p ends exactly at the field's last column and fits whole; the only
+        // gaps are the uniform 1 px cell sidebearings
+        it.strftime(0, 6, id(font_small), "%d", now);
+        it.strftime(10, 6, id(font_small), "%b", now);
+      }
+
+switch:
+  # All switches drive the render lambda (through globals or directly as
+  # switch states) — the display component itself keeps running its 25 ms
+  # updates.
+  - platform: template
+    name: "Clock"
+    optimistic: true
+    restore_mode: ALWAYS_ON
+    turn_on_action:
+      - lambda: 'id(clock_on) = true;'
+      - component.update: flipdot
+    turn_off_action:
+      - lambda: 'id(clock_on) = false;'
+      - component.update: flipdot
+
+  # Date and Ant animation share the second block row and are mutually
+  # exclusive: turning one on turns the other off (the switch entity too,
+  # so the HA UI stays in sync). The lambda reads the switch states
+  # directly — template switch restore does not fire the actions, so there
+  # are no extra globals to desync from the restored states after a reboot.
+  # If both ever end up on, the animation wins.
+  - platform: template
+    name: "Date"
+    id: sw_date
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: 'if (id(sw_anim).state) id(sw_anim).turn_off();'
+      - component.update: flipdot
+    turn_off_action:
+      - component.update: flipdot
+
+  - platform: template
+    name: "Ant animation"
+    id: sw_anim
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: 'if (id(sw_date).state) id(sw_date).turn_off();'
+      - component.update: flipdot
+    turn_off_action:
+      - component.update: flipdot
+
+  - platform: template
+    name: "Walking pixel"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - lambda: 'id(pixel_mode) = true;'
+      - component.update: flipdot
+    turn_off_action:
+      - lambda: 'id(pixel_mode) = false;'
+      - component.update: flipdot
+
+number:
+  - platform: template
+    name: "Exercise X"
+    id: num_x
+    optimistic: true
+    restore_value: no
+    initial_value: 0
+    min_value: 0
+    max_value: 23
+    step: 1
+    mode: box
+
+  - platform: template
+    name: "Exercise Y"
+    id: num_y
+    optimistic: true
+    restore_value: no
+    initial_value: 0
+    min_value: 0
+    max_value: 15
+    step: 1
+    mode: box
+
+  - platform: template
+    name: "Anim Step"
+    id: num_anim_step
+    optimistic: true
+    restore_value: yes
+    initial_value: 10
+    min_value: 1
+    max_value: 60
+    step: 1
+    mode: box
+    unit_of_measurement: "s"
 
 sensor:
   - platform: uptime
