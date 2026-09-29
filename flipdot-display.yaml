@@ -30,21 +30,6 @@ wifi:
   post_connect_roaming: false
   power_save_mode: none
 
-# --- display mode ---
-# connection: dmx — DMX512 over RS-485 through an external transceiver:
-#   ESP GPIO18 -> transceiver DI, GPIO33 -> transceiver DE, transceiver A/B ->
-#   module A/B. The frame always carries the full universe (start code 0x00 +
-#   512 slots); the modules' windows (the highest one ends at slot 384, #6's
-#   decoder) live inside it.
-# connection: single_wire — the TM1824 chain driven directly:
-#   pin: GPIO16, optionally eot_level / rmt_symbols.
-# Bench: the 3x2 field (6 modules). Top row right-to-left: the kit's #4 (all
-# 16 quads reflashed with the pulse-then-coast firmware, pulse default 50 ms)
-# in the first (rightmost) position, #2 (reflashed too, pulse default 100 ms)
-# in the middle, #3 (still the stock firmware) on the left; bottom row
-# left-to-right: #5, #1, #6 (all 16 quads each reflashed with the
-# pulse-then-coast firmware).
-
 button:
   - platform: restart
     name: "Reboot"
@@ -71,9 +56,6 @@ button:
           id(ex_left) = 10;
           id(ex_on) = false;
       - component.update: flipdot
-
-# --- display mode ---
-# Transmitter is selected in the display section (connection: dmx | single_wire).
 
 time:
   - platform: homeassistant
@@ -129,40 +111,27 @@ globals:
 display:
   - platform: flipdot_display
     id: flipdot
-    connection: dmx     # dmx | single_wire (single_wire uses pin only, no de_pin)
+    connection: dmx
     pin: GPIO18
     de_pin: GPIO33
-    cols: 3            # blocks per row
-    rows: 2            # block rows: the 3x2 field
-    # Factory module positions in the component's block (chain) order. The
-    # chain snakes: block row 0 is scanned right-to-left, row 1 left-to-right.
-    # Windows travel with the modules: #4 keeps its factory 193..256 wherever
-    # it is mounted; #2 -> 65..128, #3 -> 129..192, #5 -> 257..320,
-    # #1 -> 1..64, #6 -> 321..384.
-    # Physical placement: top row right-to-left 4, 2, 3; bottom row
-    # left-to-right 5, 1, 6 (module 5 is the bottom-left one).
+    cols: 3
+    rows: 2
     module_order: [4, 2, 3, 5, 1, 6]
     block_width: 8
     block_height: 8
-    on_level: 0        # byte for drawn (on) pixels: the release byte -> light dots
-    off_level: 255     # byte for background (off) pixels: the driven byte -> dark dots
-    # Throttled switching (see flipdot-display.md "Throttled switching"):
-    # the frame diff is sent in batches of at most `concurrency` changed dots
-    # every `step_interval`, ordered by `switching_effect`. Defaults commented
-    # out = the classic behavior (every transition is a single frame).
+    on_level: 0
+    off_level: 255
+    # Throttled switching: see flipdot-display.md
     concurrency: 8
     step_interval: 100ms
-    switching_effect: none   # none | wave | random
+    switching_effect: none
     update_interval: 25ms
     lambda: |-
-      // One render per 25 ms tick (the DMX frame floor); dirty tracking keeps
-      // the wire silent while the picture is static. Animated modes advance
-      // on their own 200 ms gate (last_step) — that is the STC8G's real
-      // cadence floor (duty detection ~12 ms + the 100 ms coil pulse);
-      // faster steps would be filtered by its duty debounce and never flip
-      // a dot. The ant animation gates itself slower instead, through the
-      // runtime-adjustable "Anim Step" number (1-60 s). Identical re-renders
-      // between steps send nothing.
+      // Animated modes advance on their own 200 ms gate (last_step) — that is
+      // the STC8G's real cadence floor (duty detection ~12 ms + the 100 ms
+      // coil pulse); faster steps would be filtered by its duty debounce and
+      // never flip a dot. The ant animation gates itself slower instead,
+      // through the runtime-adjustable "Anim Step" number (1-60 s).
       static uint32_t last_step = 0;
       const uint32_t now_ms = millis();
       const bool step_due = now_ms - last_step >= 200;
@@ -277,9 +246,6 @@ display:
       }
 
 switch:
-  # All switches drive the render lambda (through globals or directly as
-  # switch states) — the display component itself keeps running its 25 ms
-  # updates.
   - platform: template
     name: "Clock"
     optimistic: true

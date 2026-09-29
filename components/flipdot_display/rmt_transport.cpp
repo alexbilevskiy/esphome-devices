@@ -21,8 +21,6 @@ static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 // Bit timings in nanoseconds, per the TM1824 datasheet V1.2 (Titan Micro):
 // T0h 310..410 ns (typ 360), T1h 650..1000 ns (typ 720), bit period
 // 1.25..2.5 us (we use the 800 kHz nominal 1.25 us), reset low >= 200 us.
-// The old WS2811 timings (300/1090, 1090/320) sat on both edges of the
-// T0h/T1h windows and only worked within the chips' tolerance.
 static const uint32_t BIT0_HIGH_NS = 360;
 static const uint32_t BIT0_LOW_NS = 890;
 static const uint32_t BIT1_HIGH_NS = 720;
@@ -58,19 +56,6 @@ static size_t IRAM_ATTR HOT frame_encoder_callback(const void *data, size_t size
   if (symbols_free < 1)
     return 0;
   symbols[0] = params->reset;
-  *done = true;
-  return 1;
-}
-
-// Copies one pre-built symbol verbatim, used to park the line at an idle level.
-static size_t IRAM_ATTR HOT idle_encoder_callback(const void *data, size_t, size_t symbols_written, size_t symbols_free,
-                                                  rmt_symbol_word_t *symbols, bool *done, void *) {
-  const auto *symbol = static_cast<const rmt_symbol_word_t *>(data);
-  if (symbols_written > 0)
-    return 0;
-  if (symbols_free < 1)
-    return 0;
-  symbols[0] = *symbol;
   *done = true;
   return 1;
 }
@@ -136,17 +121,6 @@ void FlipdotRmtTransport::setup() {
     this->mark_failed();
     return;
   }
-
-  rmt_simple_encoder_config_t idle_encoder;
-  memset(&idle_encoder, 0, sizeof(idle_encoder));
-  idle_encoder.callback = idle_encoder_callback;
-  idle_encoder.arg = nullptr;
-  idle_encoder.min_chunk_size = 1;
-  if (rmt_new_simple_encoder(&idle_encoder, &this->idle_encoder_) != ESP_OK) {
-    ESP_LOGE(TAG, "Idle encoder creation failed");
-    this->mark_failed();
-    return;
-  }
 }
 
 void FlipdotRmtTransport::dump_config() {
@@ -188,38 +162,6 @@ void FlipdotRmtTransport::send(const uint8_t *bytes, size_t len) {
     return;
   }
   ESP_LOGD(TAG, "Sent one frame: %zu bytes", len);
-}
-
-void FlipdotRmtTransport::pin_level_(uint8_t level) {
-  if (this->failed_ || this->idle_encoder_ == nullptr)
-    return;
-  if (!this->enabled_ && rmt_enable(this->channel_) != ESP_OK) {
-    ESP_LOGE(TAG, "Enabling channel failed");
-    return;
-  }
-  this->enabled_ = true;
-
-  if (rmt_tx_wait_all_done(this->channel_, 1000) != ESP_OK) {
-    ESP_LOGW(TAG, "RMT TX timeout waiting for the frame to finish");
-    return;
-  }
-
-  // one shortest-possible symbol (12.5 ns at 80 MHz, far below any bit threshold),
-  // then the line holds at the eot level
-  rmt_symbol_word_t symbol = {
-      .duration0 = 1,
-      .level0 = level,
-      .duration1 = 0,
-      .level1 = level,
-  };
-  rmt_transmit_config_t config;
-  memset(&config, 0, sizeof(config));
-  config.flags.eot_level = level;
-  if (rmt_transmit(this->channel_, this->idle_encoder_, &symbol, sizeof(symbol), &config) != ESP_OK) {
-    ESP_LOGE(TAG, "RMT TX error");
-    return;
-  }
-  ESP_LOGD(TAG, "Idle line: %u", level);
 }
 
 }  // namespace esphome::flipdot_display

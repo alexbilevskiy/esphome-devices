@@ -22,15 +22,6 @@ class FlipdotTransport {
 
   bool is_failed() const { return this->failed_; }
 
-  /// Debug probes for the bench rig. The no-op defaults belong to transports
-  /// without the feature; the display guards by connection type and logs the
-  /// mismatch itself, so these are only called on supporting transports.
-  virtual void debug_long_break(uint32_t /*ms*/) {}
-  virtual void debug_bus_off() {}
-  virtual void debug_bus_on() {}
-  virtual void debug_pin_low() {}
-  virtual void debug_pin_high() {}
-
  protected:
   void mark_failed() { this->failed_ = true; }
   bool failed_{false};

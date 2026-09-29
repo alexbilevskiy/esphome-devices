@@ -23,32 +23,18 @@ enum class SwitchingEffect : uint8_t {
   RANDOM = 2,  ///< shuffled on every transition
 };
 
-/// Monochrome display built from daisy-chained TM1824 PWM drivers.
+/// Monochrome display built from TM1824 PWM drivers connected in series.
 ///
-/// In a module the dots are wired in the same order on both buses: chain order
-/// on the single-wire line equals the DMX window order (one dot per slot at
-/// the module's base address). The same blit therefore serves both
-/// transports, selected by `connection`:
-///   - single_wire: the RMT transport drives the chain directly (one wire
-///     byte per dot, MSB first, reset latch at the end of the frame),
-///   - dmx: the DMX512 transport drives the RS-485 bus (one byte per dot;
-///     block k (chain order) at its module's base address, slots
-///     addr..addr+63).
-///
-/// Within a block, pixels are wired as a mirrored Z: every row is scanned
-/// right-to-left, pixel 0 of a block is its top-right corner and its last
-/// pixel is the bottom-left corner. Blocks are chained as a snake:
-/// block row 0 right-to-left, row 1 left-to-right, row 2 right-to-left again,
-/// top-to-bottom across block rows.
+/// One wire byte per dot; the same blit serves both transports, selected by
+/// `connection`. The wire layout (mirrored Z within a block, blocks chained
+/// as a snake) and the byte semantics are documented in flipdot-display.md
+/// and the flipdot-stc8g HARDWARE.md.
 class FlipdotDisplay : public display::DisplayBuffer {
  public:
   void set_transport(FlipdotTransport *transport) { this->transport_ = transport; }
   void set_connection(ConnectionType connection) { this->connection_ = connection; }
-  /// DMX mode: base universe address of every block, in chain order (the
-  /// top-right block of row 0 first; the chain snakes across block rows).
-  /// Block k occupies slots addr..addr+block_pixels-1;
-  /// a module's decoder reads exactly that window. Absent/empty -> dense
-  /// windows from address 1.
+  /// DMX mode: base universe address of every block, in chain order.
+  /// Absent/empty -> dense windows from address 1.
   void set_module_addresses(std::vector<uint16_t> addresses) { this->module_addr_ = std::move(addresses); }
   void set_grid(int cols, int rows, int block_width, int block_height);
   void set_on_level(uint8_t on_level) { this->on_level_ = on_level; }
@@ -59,10 +45,7 @@ class FlipdotDisplay : public display::DisplayBuffer {
 
   void setup() override;
   void update() override;
-  /// PollingComponent schedule plus the transition stepper: while a throttled
-  /// transition is active, one batch of at most `concurrency` dots is sent
-  /// per `step_interval`. Each step is one frame, so the loop never blocks for
-  /// more than a single transmission.
+  /// PollingComponent schedule plus the throttled-transition stepper.
   void loop() override;
   /// Map the frame buffer onto the wire bytes and transmit if anything changed.
   /// force=true writes the full frame regardless of changes.
@@ -71,20 +54,6 @@ class FlipdotDisplay : public display::DisplayBuffer {
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
-  /// Debug probe: transmit one frame with every wire byte set to `value` and
-  /// sync the committed state, so dirty tracking stays correct afterwards.
-  /// Cancels an in-flight throttled transition. In DMX mode the uniform bytes
-  /// land in the module windows; gaps between windows stay at the release
-  /// byte (0x00).
-  void debug_uniform_frame(uint8_t value);
-  /// Debug probes forwarded to the transport; each logs an error when the
-  /// active connection does not support it.
-  void debug_long_break(uint32_t ms);
-  void debug_bus_off();
-  void debug_bus_on();
-  void debug_pin_low();
-  void debug_pin_high();
-
  protected:
   int get_width_internal() override { return this->width_px_; }
   int get_height_internal() override { return this->height_px_; }
@@ -92,17 +61,14 @@ class FlipdotDisplay : public display::DisplayBuffer {
 
   /// Map the frame buffer onto the wire bytes (the forward blit).
   void blit_words_();
-  /// Diff the blit result against the committed bytes, order the changed dots
-  /// per the switching effect and start a throttled transition. force=true
-  /// enqueues every dot regardless of changes.
+  /// Diff the blit result against the committed bytes and start a throttled
+  /// transition (all dots when force=true).
   void enqueue_transition_(bool force);
   /// Re-order the pending queue per the configured effect.
   void order_queue_();
   /// Send one batch of up to `concurrency` dots and commit their bytes.
   void step_transition_();
-  /// Compose the transport frame from `bytes` and transmit exactly one frame:
-  /// DMX mode composes the universe payload (zeroed gaps between module
-  /// windows); single-wire mode sends the chain bytes directly.
+  /// Compose the transport frame from `bytes` and transmit exactly one frame.
   void send_bytes_(const uint8_t *bytes);
 
   FlipdotTransport *transport_{nullptr};
@@ -125,16 +91,13 @@ class FlipdotDisplay : public display::DisplayBuffer {
   /// 1 byte per display pixel: 1 = on, 0 = off.
   uint8_t *pixels_{nullptr};
   /// Wire bytes in chain order, one byte per dot (exactly total_pixels_).
-  /// In DMX mode each block's bytes land at its module's base address.
   uint8_t *words_{nullptr};
-  /// The last transmitted wire bytes (chain order) — the state dots are aware
-  /// of being latched in. Used for dirty tracking and, in throttled mode, as
-  /// the source of every partial frame. Allocated for both transmitters.
+  /// The last transmitted wire bytes (chain order) — the dirty-tracking
+  /// source and, in throttled mode, the base of every partial frame.
   uint8_t *committed_words_{nullptr};
   /// Effect applied to the transition queue.
   SwitchingEffect effect_{SwitchingEffect::NONE};
-  /// Max dots switching in one step; 0 = all dots of a transition switch in a
-  /// single frame (the classic behavior).
+  /// Max dots switching in one step; 0 = a single frame per transition.
   uint32_t concurrency_{0};
   /// Pause between batches of a throttled transition.
   uint32_t step_interval_ms_{100};

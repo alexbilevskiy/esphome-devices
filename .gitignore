@@ -10,3 +10,4 @@
 .cache
 .esphome
 .platformio
+__pycache__/

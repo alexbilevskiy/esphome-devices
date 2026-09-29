@@ -83,30 +83,6 @@ void FlipdotDmxTransport::send(const uint8_t *bytes, size_t len) {
     ESP_LOGD(TAG, "Sent DMX frame (%zu bytes window payload)", len);
 }
 
-void FlipdotDmxTransport::debug_long_break(uint32_t ms) {
-  if (this->failed_ || this->frame_ == nullptr)
-    return;
-  // 255 bit times is the IDF break cap; pick the baud rate so one break
-  // covers the requested hold, floor at the minimum runnable baud on the
-  // 80 MHz clock (1220). Effective duration shortens below that.
-  const uint32_t baud = (255000u + ms - 1) / ms;
-  const uint32_t eff_baud = (baud < 1220) ? 1220 : baud;
-  uart_set_baudrate(UART_PORT, eff_baud);
-  // one junk 0x00 byte (an empty start code 0x00 frame for the decoder)
-  // followed by the hardware break at the lowered baud rate
-  const uint8_t dummy = 0x00;
-  uart_write_bytes_with_break(UART_PORT, &dummy, 1, 255);
-  uart_set_baudrate(UART_PORT, DMX_BAUD);
-  ESP_LOGD(TAG, "Long break: %u ms (baud %u, effective %.1f ms)", ms, eff_baud, 255000.0 / eff_baud);
-}
-
-void FlipdotDmxTransport::de_level_(uint8_t level) {
-  if (this->failed_)
-    return;
-  gpio_set_level(gpio_num_t(this->de_pin_number_), level);
-  ESP_LOGD(TAG, "Transceiver %s", level ? "driving" : "released (floating bus)");
-}
-
 }  // namespace esphome::flipdot_display
 
 #endif  // USE_ESP32

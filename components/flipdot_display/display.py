@@ -1,14 +1,11 @@
-"""Flipdot display: a monochrome display built from daisy-chained TM1824 PWM
-drivers. One component with two interchangeable transports selected by
-`connection`: the single-wire TM1824 chain (RMT) or DMX512 over RS-485 (UART
-plus an external transceiver).
+"""Flipdot display: a monochrome display built from TM1824 PWM drivers
+connected in series. One component with two interchangeable transports
+selected by `connection`: the single-wire TM1824 chain (RMT) or DMX512 over
+RS-485 (UART plus an external transceiver).
 
-The chain is 48 TM1824 chips x 32 bits (four 8-bit duty bytes each) = one duty
-byte per dot. Within a block the pixels are wired as a mirrored Z: every row is
-scanned right-to-left, pixel 0 is the top-right corner of the block and the
-last pixel is the bottom-left corner. Blocks are chained as a snake: block row
-0 right-to-left, row 1 left-to-right, alternating per row, top-to-bottom
-across block rows.
+One duty byte per dot; the pixel-to-chain mapping (mirrored Z within a
+block, blocks chained as a snake) and the byte semantics are documented in
+flipdot-display.md.
 """
 
 from esphome import pins
@@ -113,10 +110,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(FlipdotDisplay),
             cv.GenerateID(CONF_DMX_TRANSPORT_ID): cv.declare_id(FlipdotDmxTransport),
             cv.GenerateID(CONF_RMT_TRANSPORT_ID): cv.declare_id(FlipdotRmtTransport),
-            # Exactly one transport, selected by the connection type:
-            # single_wire drives the TM1824 chain from an RMT channel on `pin`,
-            # dmx drives the RS-485 bus (UART TX on `pin`, transceiver DE on
-            # `de_pin`).
             cv.Required(CONF_CONNECTION): cv.one_of(CONNECTION_SINGLE_WIRE, CONNECTION_DMX, lower=True),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_DE_PIN): pins.internal_gpio_output_pin_schema,
@@ -125,22 +118,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BLOCK_WIDTH, default=8): cv.int_range(min=1, max=128),
             cv.Optional(CONF_BLOCK_HEIGHT, default=8): cv.int_range(min=1, max=128),
             cv.Optional(CONF_ON_LEVEL, default=255): cv.int_range(min=0, max=255),
-            # Dot-transition throttling (see "Throttled switching" in the doc):
-            # with concurrency > 0 the frame diff is sent in batches of at most
-            # `concurrency` dots, one batch per step_interval; 0 = all dots of a
-            # transition switch in one frame (the classic behavior).
+            # Dot-transition throttling; see flipdot-display.md.
             cv.Optional(CONF_CONCURRENCY, default=0): cv.int_range(min=0),
             cv.Optional(CONF_STEP_INTERVAL, default="100ms"): cv.positive_time_period_milliseconds,
-            # Order of dots within a transition.
             cv.Optional(CONF_SWITCHING_EFFECT, default="none"): cv.enum(SWITCHING_EFFECTS),
             cv.Optional(CONF_OFF_LEVEL, default=0): cv.int_range(min=0, max=255),
-            # DMX mode only: factory position (1..8, the vendor's per-line
-            # limit) of every module, in chain order (the top-right block of
-            # row 0 first; the chain snakes across block rows).
-            # Module n gets the universe window (n-1)*block_pixels+1 ..
-            # n*block_pixels (the factory layout). Absent -> positions 1..N.
+            # DMX mode only: factory positions (1..8) in chain order;
+            # absent -> 1..N.
             cv.Optional(CONF_MODULE_ORDER): cv.ensure_list(cv.int_range(min=1, max=8)),
-            # Single-wire mode only: wire level after the transmitted frame.
             cv.Optional(CONF_EOT_LEVEL, default=0): cv.int_range(min=0, max=1),
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,

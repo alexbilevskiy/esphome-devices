@@ -16,8 +16,6 @@ namespace esphome::flipdot_display {
 
 static const char *const TAG = "flipdot_display";
 
-// The DMX transport always transmits a full universe (start code + 512 slots);
-// the module windows live inside it.
 static constexpr size_t DMX_UNIVERSE_SLOTS = 512;
 
 void FlipdotDisplay::set_grid(int cols, int rows, int block_width, int block_height) {
@@ -125,11 +123,8 @@ void HOT FlipdotDisplay::display(bool force) {
 }
 
 void FlipdotDisplay::blit_words_() {
-  // Forward blit: for every display pixel, place its byte at its chain position.
-  // Blocks are chained as a snake: block row 0 is scanned right-to-left, row 1
-  // left-to-right, row 2 right-to-left again, top-to-bottom across rows. Within
-  // a block, a mirrored Z: rows are scanned right-to-left, pixel 0 is the
-  // top-right corner:
+  // Forward blit: for every display pixel, place its byte at its chain
+  // position (mirrored Z within a block, blocks chained as a snake):
   //   even block_y: g = (block_y * cols + (cols - 1 - block_x)) * block_pixels
   //   odd block_y:  g = (block_y * cols + block_x) * block_pixels
   //       + in_y * block_width + (block_width - 1 - in_x)
@@ -169,12 +164,9 @@ void FlipdotDisplay::enqueue_transition_(bool force) {
   this->order_queue_();
   this->transition_active_ = true;
   if (!was_active) {
-    // New transition: fire the first batch right away (PollingComponent::loop()
-    // already drove update(), so the step timer must not wait another interval).
-    // An already-active transition keeps its step_interval cadence — update()
-    // only refreshed the target. Firing a batch on every update would run the
-    // batches at the update rate and defeat the throttling entirely once
-    // update_interval drops below step_interval.
+    // New transition: fire the first batch right away; an already-active
+    // transition keeps its step_interval cadence (update() only refreshed
+    // the target — see flipdot-display.md "Throttled switching").
     const uint32_t batch = this->concurrency_ ? this->concurrency_ : this->queue_.size();
     ESP_LOGD(TAG, "Transition: %u dot(s), %u batch(es)", (unsigned) this->queue_.size(),
              (unsigned) ((this->queue_.size() + batch - 1) / batch));
@@ -246,9 +238,7 @@ void FlipdotDisplay::step_transition_() {
 
 void FlipdotDisplay::send_bytes_(const uint8_t *bytes) {
   if (this->connection_ == ConnectionType::DMX) {
-    // One frame per call: block k (chain order) lands at the universe slots of
-    // its module's base address (addr..addr+block_pixels-1); gaps between
-    // windows stay 0x00 (release).
+    // gaps between module windows stay 0x00 (release)
     const size_t block_pixels = static_cast<size_t>(this->block_width_) * this->block_height_;
     memset(this->dmx_frame_, 0, this->dmx_len_);
     for (size_t k = 0; k < this->module_addr_.size(); k++)
@@ -266,67 +256,9 @@ void HOT FlipdotDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   this->pixels_[static_cast<uint32_t>(y) * this->width_px_ + x] = on ? 1 : 0;
 }
 
-void FlipdotDisplay::debug_uniform_frame(uint8_t value) {
-  if (this->pixels_ == nullptr || this->words_ == nullptr || this->committed_words_ == nullptr)
-    return;
-  if (this->transport_ == nullptr || this->transport_->is_failed())
-    return;
-  // an in-flight transition refers to stale bytes — drop it
-  this->transition_active_ = false;
-  memset(this->words_, value, this->total_pixels_);
-  this->send_bytes_(this->words_);
-  memset(this->committed_words_, value, this->total_pixels_);
-}
-
-void FlipdotDisplay::debug_long_break(uint32_t ms) {
-  if (this->connection_ != ConnectionType::DMX) {
-    ESP_LOGE(TAG, "debug_long_break is only available with connection: dmx");
-    return;
-  }
-  if (this->transport_ != nullptr)
-    this->transport_->debug_long_break(ms);
-}
-
-void FlipdotDisplay::debug_bus_off() {
-  if (this->connection_ != ConnectionType::DMX) {
-    ESP_LOGE(TAG, "debug_bus_off is only available with connection: dmx");
-    return;
-  }
-  if (this->transport_ != nullptr)
-    this->transport_->debug_bus_off();
-}
-
-void FlipdotDisplay::debug_bus_on() {
-  if (this->connection_ != ConnectionType::DMX) {
-    ESP_LOGE(TAG, "debug_bus_on is only available with connection: dmx");
-    return;
-  }
-  if (this->transport_ != nullptr)
-    this->transport_->debug_bus_on();
-}
-
-void FlipdotDisplay::debug_pin_low() {
-  if (this->connection_ != ConnectionType::SINGLE_WIRE) {
-    ESP_LOGE(TAG, "debug_pin_low is only available with connection: single_wire");
-    return;
-  }
-  if (this->transport_ != nullptr)
-    this->transport_->debug_pin_low();
-}
-
-void FlipdotDisplay::debug_pin_high() {
-  if (this->connection_ != ConnectionType::SINGLE_WIRE) {
-    ESP_LOGE(TAG, "debug_pin_high is only available with connection: single_wire");
-    return;
-  }
-  if (this->transport_ != nullptr)
-    this->transport_->debug_pin_high();
-}
-
 void FlipdotDisplay::dump_config() {
   LOG_DISPLAY("", "Flipdot Display", this);
-  ESP_LOGCONFIG(TAG, "  Blocks: %dx%d of %dx%d px", this->cols_, this->rows_, this->block_width_,
-                this->block_height_);
+  ESP_LOGCONFIG(TAG, "  Blocks: %dx%d of %dx%d px", this->cols_, this->rows_, this->block_width_, this->block_height_);
   ESP_LOGCONFIG(TAG, "  Chain bytes: %" PRIu32, this->total_pixels_);
   ESP_LOGCONFIG(TAG, "  On level: %u", this->on_level_);
   ESP_LOGCONFIG(TAG, "  Off level: %u", this->off_level_);
